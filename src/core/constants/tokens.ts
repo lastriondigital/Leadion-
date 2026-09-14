@@ -1,0 +1,50 @@
+export const LEADION_TOKENS = {
+  colors: {
+    primary: '#635BFF',
+    primaryHover: '#5046E5',
+    primaryLight: '#EEF0FF',
+    ink: '#111318',
+    inkSecondary: '#475467',
+    inkMuted: '#68707D',
+    background: '#F7F8FA',
+    surface: '#FFFFFF',
+    border: '#E6E8EC',
+    secondary: '#68707D',
+    success: '#16A34A',
+    warning: '#D97706',
+    danger: '#DC2626',
+    info: '#2563EB',
+  },
+  spacing: [4, 8, 12, 16, 20, 24, 32, 40, 48, 64],
+  radius: {
+    inputs: '11px',
+    cards: '15px',
+    modals: '20px',
+  },
+  channels: {
+    whatsapp: {
+      name: 'WhatsApp',
+      color: '#16A34A',
+      bgColor: '#F0FDF4',
+      badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
+    },
+    linkedin: {
+      name: 'LinkedIn',
+      color: '#0A66C2',
+      bgColor: '#EFF6FF',
+      badgeClass: 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
+    },
+    email: {
+      name: 'E-mail',
+      color: '#4B5563',
+      bgColor: '#F3F4F6',
+      badgeClass: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800/60 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700',
+    },
+    phone: {
+      name: 'Telefone',
+      color: '#635BFF',
+      bgColor: '#EEF0FF',
+      badgeClass: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60',
+    },
+  },
+} as const;
