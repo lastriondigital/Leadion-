@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLeadion } from '../../context/LeadionContext';
 import { SmartProspectActionCard } from './SmartProspectActionCard';
+import { TopNextActionHero } from './TopNextActionHero';
 import { sortActionsByPriority } from '../../core/priority/priorityEngine';
 import { ProspectActionStatus } from '../../core/types/prospectAction';
 import { Button } from '../ui/Button';
@@ -38,11 +39,22 @@ export const ProspectTodayView: React.FC = () => {
     companyNeedingNextAction,
     setCompanyNeedingNextAction,
     quickViewCompany,
+    setQuickViewCompany,
+    openActionOutcomeModal,
+    openObjectionDispatchModal,
+    companies,
   } = useLeadion();
 
   const [activeTab, setActiveTab] = useState<QueueTab>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState<string>('all');
+
+  // Top Next Action determinada pelo Motor de Prioridade LEADION
+  const topAction = useMemo(() => {
+    const pendingActions = actions.filter((a) => a.status !== 'concluida' && a.status !== 'cancelada');
+    const sorted = sortActionsByPriority(pendingActions, priorityWeights);
+    return sorted[0] || null;
+  }, [actions, priorityWeights]);
 
   // Formata data de hoje em português
   const todayFormatted = useMemo(() => {
@@ -352,6 +364,29 @@ export const ProspectTodayView: React.FC = () => {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* DESTAQUE PRINCIPAL: # PRÓXIMA AÇÃO (MOTOR DE PRIORIDADE LEADION)          */}
+      {/* ========================================================================= */}
+      {topAction && activeTab !== 'concluida' && !searchTerm && (
+        <TopNextActionHero
+          topAction={topAction}
+          onOpenOutcomeModal={(act) => openActionOutcomeModal(act)}
+          onOpenObjectionModal={(act) => {
+            const comp = companies.find((c) => c.id === act.companyId);
+            openObjectionDispatchModal(comp, act.id);
+          }}
+          onOpenCompanyDetail={(companyId) => {
+            const comp = companies.find((c) => c.id === companyId);
+            if (comp) setQuickViewCompany(comp);
+          }}
+          onOpenPlanningModal={(companyId) => {
+            const comp = companies.find((c) => c.id === companyId);
+            if (comp) setPlanningPreselectedCompany(comp);
+            setIsPlanningModalOpen(true);
+          }}
+        />
       )}
 
       {/* ========================================================================= */}

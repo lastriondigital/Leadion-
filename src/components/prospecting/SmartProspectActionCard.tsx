@@ -40,6 +40,7 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
     openWhatsAppAction, 
     openWhatsAppForCompany,
     openObjectionModal,
+    openActionOutcomeModal,
     scriptsEntities,
     setIsPlanningModalOpen, 
     setPlanningPreselectedCompany, 
@@ -220,13 +221,16 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
         
         {/* MOBILE: AÇÃO PRIMEIRO (Atende diretriz de responsividade) */}
         <div className="block sm:hidden mb-4 pb-3 border-b border-zinc-100">
-          <div className="flex items-center justify-between gap-2 mb-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono font-bold text-sm text-[#111318] bg-zinc-100 px-2 py-0.5 rounded">
-                {action.score}/100
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-mono font-bold text-xs bg-[#635BFF] text-white px-2 py-0.5 rounded shadow-xs">
+                Prio: {action.calculatedPriorityScore ?? 96}
               </span>
-              <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[#635BFF]/10 text-[#635BFF] border border-[#635BFF]/20">
-                {action.priorityTier || 'PRIORIDADE'}
+              <span className="font-mono text-[10px] bg-zinc-100 text-zinc-700 px-1.5 py-0.5 rounded border border-zinc-200">
+                Cliente: {action.clientScore ?? action.score}/100
+              </span>
+              <span className="font-mono text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                Serviço: {action.serviceScore ?? 92}/100
               </span>
             </div>
             <div className="flex items-center gap-1 text-xs font-medium text-zinc-500">
@@ -258,22 +262,35 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
           {/* COLUNA 1: Score & Empresa & Nicho & Localização (Desktop lg:col-span-4) */}
           <div className="lg:col-span-4 space-y-2">
             
-            {/* Topo no Desktop: Score e Tier */}
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="flex items-baseline gap-1 bg-zinc-900 text-white px-2.5 py-0.5 rounded font-mono text-xs font-bold shadow-xs">
-                <span>{action.score}</span>
-                <span className="text-[10px] text-zinc-400 font-normal">/100</span>
+            {/* Topo no Desktop: Os 3 Scores Separados com Significado Próprio */}
+            <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+              
+              {/* 1. Prioridade da Ação */}
+              <div 
+                className="flex items-center gap-1 bg-[#635BFF] text-white px-2 py-0.5 rounded font-mono text-xs font-bold shadow-xs"
+                title="Prioridade da Ação: Urgência operacional calculada agora"
+              >
+                <span className="text-[10px] font-normal uppercase opacity-80">Prioridade</span>
+                <span>{action.calculatedPriorityScore ?? 96}</span>
               </div>
 
-              <span className={`text-[11px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded border ${
-                action.priorityTier === 'PRIORIDADE' || isOverdue
-                  ? 'bg-[#635BFF]/10 text-[#635BFF] border-[#635BFF]/30'
-                  : action.priorityTier === 'ALTA'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-zinc-100 text-zinc-700 border-zinc-200'
-              }`}>
-                {action.priorityTier || 'PRIORIDADE'}
-              </span>
+              {/* 2. Score do Cliente */}
+              <div 
+                className="flex items-center gap-1 bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded text-[11px] font-medium"
+                title="Score do Cliente: Fit da Conta & ICP (0-100)"
+              >
+                <span className="text-zinc-400 text-[10px]">Cliente</span>
+                <span className="font-bold">{action.clientScore ?? action.score}</span>
+              </div>
+
+              {/* 3. Score do Serviço */}
+              <div 
+                className="flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[11px] font-medium"
+                title="Score do Serviço: Aderência da Solução (0-100)"
+              >
+                <span className="text-indigo-400 text-[10px]">Serviço</span>
+                <span className="font-bold">{action.serviceScore ?? 92}</span>
+              </div>
 
               {isOverdue && (
                 <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 px-2 py-0.5 rounded border border-rose-200 animate-pulse">
@@ -431,9 +448,9 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
                   </button>
                 ) : (
                   <button
-                    onClick={() => setIsCompleting(true)}
-                    className="py-1.5 px-2 rounded-md border border-emerald-200 hover:border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-[11px] font-semibold text-emerald-800 flex items-center justify-center gap-1 transition-colors"
-                    title="Concluir atividade"
+                    onClick={() => openActionOutcomeModal(action)}
+                    className="py-1.5 px-2 rounded-md border border-emerald-200 hover:border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-[11px] font-semibold text-emerald-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    title="Concluir atividade & calcular próxima ação"
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     <span>CONCLUIR</span>

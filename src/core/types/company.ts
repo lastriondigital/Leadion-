@@ -13,6 +13,7 @@ export type CompanyTimelineEventType =
   | 'servico_selecionado'
   | 'qualificacao'
   | 'mensagem_enviada'
+  | 'whatsapp_enviado'
   | 'follow_up'
   | 'resposta'
   | 'objecao'
@@ -151,5 +152,8 @@ export interface Company {
   tradingName?: string;
   linkedinUrl?: string;
   websiteUrl?: string;
+  decisionMakerName?: string;
+  serviceInterest?: string;
+  instagram?: string;
 }
 

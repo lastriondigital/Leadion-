@@ -29,6 +29,10 @@ import { ObjectionResponseModal } from '../scripts/ObjectionResponseModal';
 import { ObjectionBuilderModal } from '../objections/ObjectionBuilderModal';
 import { ObjectionSequenceModal } from '../objections/ObjectionSequenceModal';
 import { ObjectionDispatchModal } from '../objections/ObjectionDispatchModal';
+import { ActionOutcomeModal } from '../modals/ActionOutcomeModal';
+import { SyncCenterModal } from '../sync/SyncCenterModal';
+import { DataManagementModal } from '../data/DataManagementModal';
+import { ConflictResolutionModal } from '../sync/ConflictResolutionModal';
 
 export const AppShell: React.FC = () => {
   const { 
@@ -50,7 +54,20 @@ export const AppShell: React.FC = () => {
     isObjectionDispatchModalOpen,
     setIsObjectionDispatchModalOpen,
     objectionDispatchData,
-  } = useLeadion();
+    isOutcomeModalOpen,
+    closeActionOutcomeModal,
+    outcomeModalAction,
+    isSyncCenterModalOpen,
+    setIsSyncCenterModalOpen,
+    isDataManagementModalOpen,
+    setIsDataManagementModalOpen,
+    dataManagementDefaultTab,
+    openDataManagementModal,
+    isConflictModalOpen,
+    setIsConflictModalOpen,
+    activeConflict,
+    resolveActiveConflict,
+  } = useLeadion() as any;
 
   const renderActiveView = () => {
     switch (activeNav) {
@@ -177,6 +194,46 @@ export const AppShell: React.FC = () => {
         companyName={objectionModalData?.companyName}
         contactName={objectionModalData?.contactName}
         onSelectResponseScript={objectionModalData?.onSelectResponseScript}
+      />
+
+      {/* Interactive Objection Dispatch Modal */}
+      {isObjectionDispatchModalOpen && (
+        <ObjectionDispatchModal
+          isOpen={isObjectionDispatchModalOpen}
+          onClose={() => setIsObjectionDispatchModalOpen(false)}
+          company={objectionDispatchData?.company || null}
+          actionId={objectionDispatchData?.actionId}
+          preselectedObjectionId={objectionDispatchData?.preselectedObjectionId}
+        />
+      )}
+
+      {/* Action Outcome & Automated Next Action Engine Modal */}
+      <ActionOutcomeModal
+        isOpen={isOutcomeModalOpen}
+        onClose={closeActionOutcomeModal}
+        action={outcomeModalAction}
+      />
+
+      {/* Central de Sincronização & Nuvem Supabase */}
+      <SyncCenterModal
+        isOpen={isSyncCenterModalOpen}
+        onClose={() => setIsSyncCenterModalOpen(false)}
+        onOpenDataModal={(tab) => openDataManagementModal(tab)}
+      />
+
+      {/* Central de Backup & Importação/Exportação */}
+      <DataManagementModal
+        isOpen={isDataManagementModalOpen}
+        onClose={() => setIsDataManagementModalOpen(false)}
+        initialTab={dataManagementDefaultTab}
+      />
+
+      {/* Resolução de Conflitos Concorrentes */}
+      <ConflictResolutionModal
+        isOpen={isConflictModalOpen}
+        onClose={() => setIsConflictModalOpen(false)}
+        conflict={activeConflict}
+        onResolve={resolveActiveConflict}
       />
     </div>
   );

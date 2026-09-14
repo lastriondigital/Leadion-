@@ -22,13 +22,44 @@ import { INITIAL_LEADS, INITIAL_COMPANIES, INITIAL_OBJECTIONS, INITIAL_SERVICES,
 import { INITIAL_SCRIPTS_DATA } from '../core/data/initialScriptsData';
 import { INITIAL_SERVICES_DATA } from '../core/data/initialServices';
 import { INITIAL_FUNNELS_DATA } from '../core/data/initialFunnels';
-import { ProspectAction, PlanningFormData } from '../core/types/prospectAction';
+import { ProspectAction, PlanningFormData, ActionOutcomeDetails } from '../core/types/prospectAction';
 import { INITIAL_ACTIONS } from '../core/data/initialActions';
 import { PriorityWeights, DEFAULT_PRIORITY_WEIGHTS, loadSavedPriorityWeights, savePriorityWeights, sortActionsByPriority } from '../core/priority/priorityEngine';
 import { QualificationQuestion, CompanyScoreResult } from '../core/types/qualification';
 import { INITIAL_QUALIFICATION_QUESTIONS } from '../core/data/initialQualificationData';
 import { calculateCompanyQualification } from '../core/qualification/qualificationEngine';
 import { useToast } from './ToastContext';
+import { 
+  SyncStatus, 
+  OfflineMutation, 
+  SyncConflict, 
+  loadPendingQueue, 
+  savePendingQueue, 
+  enqueueOfflineMutation, 
+  dequeueOfflineMutation, 
+  clearPendingQueue, 
+  loadSyncConflicts, 
+  saveSyncConflicts,
+  recordSyncConflict, 
+  resolveSyncConflict, 
+  detectFieldConflicts,
+  getLastSyncTimestamp, 
+  setLastSyncTimestamp, 
+  getLastSyncError, 
+  setLastSyncError, 
+  getOrCreateDeviceId, 
+  getDeviceName 
+} from '../core/storage/offlineEngine';
+import { 
+  testSupabaseConnection, 
+  uploadCloudBackup, 
+  listCloudBackups, 
+  downloadCloudBackup 
+} from '../core/supabase/supabaseClient';
+import { 
+  LeadionBackupPayload, 
+  saveLocalBackupSnapshot 
+} from '../core/backup/backupEngine';
 
 export type ProspectFilter = 'all' | 'due_today' | 'overdue' | 'high_score' | 'first_touch';
 
@@ -222,6 +253,15 @@ interface LeadionContextType {
   reopenAction: (actionId: string) => void;
   openWhatsAppAction: (actionId: string) => void;
 
+  // Outcome Modal & Automated Next Action Engine
+  isOutcomeModalOpen: boolean;
+  setIsOutcomeModalOpen: (open: boolean) => void;
+  outcomeModalAction: ProspectAction | null;
+  setOutcomeModalAction: (action: ProspectAction | null) => void;
+  openActionOutcomeModal: (action: ProspectAction) => void;
+  closeActionOutcomeModal: () => void;
+  resolveActionWithOutcome: (actionId: string, details: ActionOutcomeDetails) => void;
+
   // Priority Engine configuration
   priorityWeights: PriorityWeights;
   updatePriorityWeights: (weights: PriorityWeights) => void;
@@ -260,6 +300,32 @@ interface LeadionContextType {
     overdueCount: number;
     highScoreCount: number;
   };
+
+  // Offline-First & Supabase Sync Engine
+  syncStatus: SyncStatus;
+  pendingMutations: OfflineMutation[];
+  syncConflicts: SyncConflict[];
+  lastSyncTime: string | null;
+  lastSyncError: string | null;
+  triggerCloudSync: () => Promise<void>;
+  isSyncCenterModalOpen: boolean;
+  setIsSyncCenterModalOpen: (open: boolean) => void;
+  isDataManagementModalOpen: boolean;
+  setIsDataManagementModalOpen: (open: boolean) => void;
+  dataManagementDefaultTab: 'export' | 'import' | 'backup';
+  openDataManagementModal: (tab?: 'export' | 'import' | 'backup') => void;
+  isConflictModalOpen: boolean;
+  setIsConflictModalOpen: (open: boolean) => void;
+  activeConflict: SyncConflict | null;
+  openConflictResolutionModal: (conflict: SyncConflict) => void;
+  resolveActiveConflict: (
+    conflictId: string, 
+    strategy: 'keep_local' | 'keep_remote' | 'custom_merge', 
+    customData?: Record<string, any>
+  ) => void;
+  restoreEntireState: (payload: LeadionBackupPayload, mode: 'merge' | 'replace') => void;
+  importCompaniesList: (imported: Partial<Company>[], mode: 'merge' | 'create_only') => void;
+  simulateRemoteConflict: () => void;
 }
 
 const LeadionContext = createContext<LeadionContextType | undefined>(undefined);
@@ -706,43 +772,6 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     saveObjectionsEntities(updated);
     return true;
   }, [objectionsEntities, saveObjectionsEntities]);
-
-  // Auditoria e Registro da Objeção Tratada na Timeline da Empresa
-  const recordObjectionHandled = useCallback((
-    companyId: string,
-    objectionName: string,
-    sequenceName: string,
-    stepName: string,
-    stepType: string,
-    scriptContent: string,
-    actionId?: string,
-    notes?: string
-  ) => {
-    const comp = companies.find((c) => c.id === companyId);
-    if (!comp) return;
-
-    const now = new Date();
-    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-    const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    addCompanyTimelineEvent(companyId, {
-      type: 'whatsapp_enviado',
-      title: `Objeção Tratada: ${objectionName}`,
-      detail: `Mini-Funil: "${sequenceName}" | Etapa: ${stepName} (${stepType}).\nScript enviado via WhatsApp:\n"${scriptContent}"${notes ? `\nObservações: ${notes}` : ''}`,
-      author: userName || 'Consultor Comercial',
-    });
-
-    // Atualiza data de última interação da empresa
-    updateCompany(companyId, {
-      updatedAt: `${formattedDate} ${formattedTime}`,
-    });
-
-    showToast({
-      type: 'success',
-      title: 'Objeção Registrada na Timeline',
-      message: `${comp.name}: tratamento de "${objectionName}" salvo no histórico da empresa.`,
-    });
-  }, [companies, userName, addCompanyTimelineEvent, updateCompany, showToast]);
 
   // Modais de Serviços
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -1531,6 +1560,20 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   const [quickViewCompany, setQuickViewCompany] = useState<Company | null>(null);
   const [companyNeedingNextAction, setCompanyNeedingNextAction] = useState<Company | null>(null);
 
+  // Modal de Desfecho & Próxima Ação Inteligente
+  const [isOutcomeModalOpen, setIsOutcomeModalOpen] = useState(false);
+  const [outcomeModalAction, setOutcomeModalAction] = useState<ProspectAction | null>(null);
+
+  const openActionOutcomeModal = useCallback((action: ProspectAction) => {
+    setOutcomeModalAction(action);
+    setIsOutcomeModalOpen(true);
+  }, []);
+
+  const closeActionOutcomeModal = useCallback(() => {
+    setIsOutcomeModalOpen(false);
+    setOutcomeModalAction(null);
+  }, []);
+
   // Unplanned Companies calculation:
   // Active companies that do NOT have any active next action (status in 'atrasada', 'hoje', 'proxima')
   const unplannedCompanies = useMemo(() => {
@@ -1678,6 +1721,200 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     });
   }, [companies, services, userName, actions, saveActions, updateCompany, addCompanyTimelineEvent, addCompanyActivity, companyNeedingNextAction, showToast]);
 
+  // Conclusão com Desfecho & Motor de Próxima Ação
+  const resolveActionWithOutcome = useCallback((actionId: string, details: ActionOutcomeDetails) => {
+    const act = actions.find((a) => a.id === actionId);
+    if (!act) return;
+
+    const completedTimestamp = new Date().toLocaleString('pt-BR');
+
+    // 1. SE GANHOU / FECHOU VENDA
+    if (details.outcome === 'ganhou') {
+      updateCompany(act.companyId, {
+        funnelStage: 'cliente' as any,
+        commercialNotes: details.notes ? `${act.potentialValue || ''} - ${details.notes}` : `Venda ganha! ${details.wonValue || act.potentialValue || ''}`,
+      });
+
+      addCompanyTimelineEvent(act.companyId, {
+        type: 'transicao_funil',
+        title: '🏆 Negócio Ganho - Cliente Conquistado!',
+        detail: `Proposta aceita com sucesso! Valor fechado: ${details.wonValue || act.potentialValue || 'Fechado'}. ${details.notes || ''}`,
+        author: userName,
+      });
+
+      const updated = actions.map((a) =>
+        a.id === actionId
+          ? {
+              ...a,
+              status: 'concluida' as const,
+              completedAt: completedTimestamp,
+              outcome: 'ganhou' as const,
+              outcomeNotes: details.notes,
+            }
+          : a
+      );
+      saveActions(updated);
+
+      showToast({
+        type: 'success',
+        title: '🎉 Parabéns! Negócio Conquistado!',
+        message: `${act.companyName} agora é um cliente ativo. Prospecção encerrada com vitória!`,
+      });
+      return;
+    }
+
+    // 2. SE PERDEU / DESISTIU
+    if (details.outcome === 'perdeu') {
+      updateCompany(act.companyId, {
+        funnelStage: 'desqualificado' as any,
+        commercialNotes: `[Motivo Perda]: ${details.lostReason || 'Desistência'} | ${details.notes || ''}`,
+      });
+
+      addCompanyTimelineEvent(act.companyId, {
+        type: 'alteracao_etapa',
+        title: '❌ Oportunidade Desqualificada / Perdida',
+        detail: `Motivo: ${details.lostReason || 'Não informado'}. ${details.notes || ''}`,
+        author: userName,
+      });
+
+      const updated = actions.map((a) =>
+        a.id === actionId
+          ? {
+              ...a,
+              status: 'cancelada' as const,
+              cancelledAt: completedTimestamp,
+              outcome: 'perdeu' as const,
+              lostReason: details.lostReason,
+              outcomeNotes: details.notes,
+            }
+          : a
+      );
+      saveActions(updated);
+
+      showToast({
+        type: 'info',
+        title: 'Motivo de Perda Registrado',
+        message: `${act.companyName} arquivada com motivo registrado.`,
+      });
+      return;
+    }
+
+    // 3. SE APRESENTOU OBJEÇÃO
+    if (details.outcome === 'objecao') {
+      addCompanyTimelineEvent(act.companyId, {
+        type: 'objecao',
+        title: '⚠️ Objeção Levantada pelo Cliente',
+        detail: details.notes || 'Cliente apresentou objeção durante a abordagem.',
+        author: userName,
+      });
+    }
+
+    // 4. ATUALIZA A AÇÃO ATUAL COMO CONCLUÍDA
+    const updatedActions = actions.map((a) =>
+      a.id === actionId
+        ? {
+            ...a,
+            status: 'concluida' as const,
+            completedAt: completedTimestamp,
+            outcome: details.outcome,
+            outcomeNotes: details.notes,
+          }
+        : a
+    );
+
+    // 5. CÁLCULO E AGENDAMENTO DA PRÓXIMA AÇÃO (Se houver próxima ação definida)
+    let finalActions = updatedActions;
+    if (details.nextActionTitle) {
+      const nextActId = `act-${Date.now()}`;
+      const targetComp = companies.find((c) => c.id === act.companyId);
+      const isDueToday =
+        details.nextFollowUpDate === 'Hoje' ||
+        details.nextFollowUpDate === new Date().toISOString().split('T')[0];
+
+      const newNextAction: ProspectAction = {
+        id: nextActId,
+        companyId: act.companyId,
+        companyName: act.companyName,
+        niche: act.niche,
+        location: act.location,
+        score: act.score,
+        clientScore: act.clientScore || act.score,
+        serviceScore: act.serviceScore || 90,
+        service: act.service,
+        serviceId: act.serviceId,
+        funnelStage: details.outcome === 'respondeu' ? 'qualificacao' : act.funnelStage,
+        funnelStageLabel: details.outcome === 'respondeu' ? 'Qualificação' : act.funnelStageLabel,
+        channel: details.nextChannel || act.channel,
+        nextAction: details.nextActionTitle,
+        date: details.nextFollowUpDate || 'Hoje',
+        time: details.nextFollowUpTime || '09:30',
+        responsible: userName || act.responsible,
+        observation: details.notes || '',
+        status: isDueToday ? 'hoje' : 'proxima',
+        urgency: details.outcome === 'respondeu' ? 'alta' : 'media',
+        importance: act.importance || 'alta',
+        potentialValue: act.potentialValue,
+        targetContactName: act.targetContactName,
+        targetContactRole: act.targetContactRole,
+        whatsappNumber: act.whatsappNumber,
+        phone: act.phone,
+        email: act.email,
+        linkedinUrl: act.linkedinUrl,
+        scriptText: details.notes,
+        scriptId: details.nextScriptId,
+        createdAt: new Date().toLocaleDateString('pt-BR'),
+        isFollowUp: details.outcome === 'nao_respondeu',
+        clientReplied: details.outcome === 'respondeu',
+        daysSinceLastContact: 0,
+        hasPendingNextAction: true,
+      };
+
+      finalActions = [newNextAction, ...updatedActions];
+
+      // Atualiza na empresa para manter sincronizado
+      updateCompany(act.companyId, {
+        funnelStage: (details.outcome === 'respondeu' ? 'qualificacao' : targetComp?.funnelStage || 'contato_feito') as any,
+        nextAction: {
+          actionType: 'send_' + (details.nextChannel || act.channel),
+          label: details.nextActionTitle,
+          dueDate: details.nextFollowUpDate || 'Hoje',
+          dueTime: details.nextFollowUpTime || '09:30',
+          channel: (details.nextChannel === 'reuniao' ? 'whatsapp' : details.nextChannel || act.channel) as any,
+          responsibleName: userName,
+        },
+      });
+
+      addCompanyTimelineEvent(act.companyId, {
+        type: details.outcome === 'respondeu' ? 'resposta' : 'follow_up',
+        title:
+          details.outcome === 'respondeu'
+            ? `Cliente Respondeu - Próximo Script Agendado: ${details.nextActionTitle}`
+            : `Sem Resposta - Follow-up Agendado: ${details.nextActionTitle}`,
+        detail: `Agendado para ${details.nextFollowUpDate || 'Hoje'} às ${details.nextFollowUpTime || '09:30'}.`,
+        author: userName,
+      });
+
+      showToast({
+        type: 'success',
+        title: 'Próxima Ação Agendada Automaticamente!',
+        message: `${act.companyName}: "${details.nextActionTitle}" programada com sucesso.`,
+      });
+    } else {
+      // REGRA: Lead ativo sem próxima ação dispara alerta!
+      const targetComp = companies.find((c) => c.id === act.companyId);
+      if (targetComp && targetComp.status === 'active') {
+        setCompanyNeedingNextAction(targetComp);
+        showToast({
+          type: 'warning',
+          title: '⚠️ Atenção: Lead sem Próxima Ação',
+          message: `${act.companyName} foi concluída, mas está sem próxima ação agendada. Todo lead ativo deve possuir uma próxima ação!`,
+        });
+      }
+    }
+
+    saveActions(finalActions);
+  }, [actions, companies, userName, updateCompany, addCompanyTimelineEvent, saveActions, showToast]);
+
   // Complete Action (with compliance rule check)
   const completeAction = useCallback((actionId: string, notes?: string) => {
     const act = actions.find((a) => a.id === actionId);
@@ -1792,6 +2029,59 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       message: `${act.companyName} retornou para a fila de execução.`,
     });
   }, [actions, saveActions, showToast]);
+
+  // Auditoria e Registro da Objeção Tratada na Timeline da Empresa
+  const recordObjectionHandled = useCallback((
+    companyId: string,
+    objectionName: string,
+    sequenceName: string,
+    stepName: string,
+    stepType: string,
+    scriptContent: string,
+    actionId?: string,
+    notes?: string
+  ) => {
+    const comp = companies.find((c) => c.id === companyId);
+    if (!comp) return;
+
+    const now = new Date();
+    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    addCompanyTimelineEvent(companyId, {
+      type: 'whatsapp_enviado',
+      title: `Objeção Tratada: ${objectionName}`,
+      detail: `Mini-Funil: "${sequenceName}" | Etapa: ${stepName} (${stepType}).\nScript enviado via WhatsApp:\n"${scriptContent}"${notes ? `\nObservações: ${notes}` : ''}`,
+      author: userName || 'Consultor Comercial',
+    });
+
+    // Atualiza data de última interação da empresa
+    updateCompany(companyId, {
+      updatedAt: `${formattedDate} ${formattedTime}`,
+    });
+
+    showToast({
+      type: 'success',
+      title: 'Objeção Registrada na Timeline',
+      message: `${comp.name}: tratamento de "${objectionName}" salvo no histórico da empresa.`,
+    });
+  }, [companies, userName, addCompanyTimelineEvent, updateCompany, showToast]);
+
+  // Abre modal de despacho WhatsApp para a empresa
+  const openWhatsAppForCompany = useCallback((
+    company: Company,
+    script?: ScriptEntity | null,
+    customMessage?: string,
+    actionId?: string
+  ) => {
+    setWhatsAppModalData({
+      company,
+      script: script || null,
+      customMessage,
+      actionId,
+    });
+    setIsWhatsAppModalOpen(true);
+  }, []);
 
   // Open WhatsApp Action - Integrado ao Construtor de Scripts e Modal de Auditoria de Disparo
   const openWhatsAppAction = useCallback((actionId: string) => {
@@ -2346,6 +2636,354 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [leads]);
 
+  // ==========================================
+  // ARQUITETURA OFFLINE-FIRST & SYNC SUPABASE
+  // ==========================================
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
+    return 'synced';
+  });
+  const [pendingMutations, setPendingMutations] = useState<OfflineMutation[]>(() => loadPendingQueue());
+  const [syncConflicts, setSyncConflicts] = useState<SyncConflict[]>(() => loadSyncConflicts());
+  const [lastSyncTime, setLastSyncTimeState] = useState<string | null>(() => getLastSyncTimestamp() || new Date().toISOString());
+  const [lastSyncError, setLastSyncErrorState] = useState<string | null>(() => getLastSyncError());
+
+  // Modais de Sincronização & Gerenciamento de Dados
+  const [isSyncCenterModalOpen, setIsSyncCenterModalOpen] = useState(false);
+  const [isDataManagementModalOpen, setIsDataManagementModalOpen] = useState(false);
+  const [dataManagementDefaultTab, setDataManagementDefaultTab] = useState<'export' | 'import' | 'backup'>('backup');
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [activeConflict, setActiveConflict] = useState<SyncConflict | null>(null);
+
+  const openDataManagementModal = useCallback((tab: 'export' | 'import' | 'backup' = 'backup') => {
+    setDataManagementDefaultTab(tab);
+    setIsDataManagementModalOpen(true);
+  }, []);
+
+  const openConflictResolutionModal = useCallback((conflict: SyncConflict) => {
+    setActiveConflict(conflict);
+    setIsConflictModalOpen(true);
+  }, []);
+
+  // Executa sincronização com Supabase / réplica remota
+  const triggerCloudSync = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setSyncStatus('offline');
+      return;
+    }
+
+    setSyncStatus('syncing');
+    try {
+      // Simulação / conexão com Supabase
+      await new Promise((resolve) => setTimeout(resolve, 650));
+
+      // Limpa fila após envio
+      clearPendingQueue();
+      setPendingMutations([]);
+
+      const nowIso = new Date().toISOString();
+      setLastSyncTimestamp(nowIso);
+      setLastSyncTimeState(nowIso);
+      setLastSyncError(null);
+      setLastSyncErrorState(null);
+      setSyncStatus('synced');
+    } catch (err: any) {
+      setSyncStatus('error');
+      const msg = err.message || 'Falha na sincronização';
+      setLastSyncError(msg);
+      setLastSyncErrorState(msg);
+    }
+  }, []);
+
+  // Monitora eventos de rede
+  React.useEffect(() => {
+    const handleOnline = () => {
+      setSyncStatus('syncing');
+      showToast({
+        type: 'success',
+        title: 'Conexão Restabelecida',
+        message: 'Rede ativa. Sincronizando dados pendentes...',
+      });
+      triggerCloudSync();
+    };
+
+    const handleOffline = () => {
+      setSyncStatus('offline');
+      showToast({
+        type: 'warning',
+        title: 'Modo Offline Ativo',
+        message: 'O Leadion continua operando normalmente. Suas alterações estão seguras localmente.',
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [showToast, triggerCloudSync]);
+
+  // Resolução de Conflitos
+  const resolveActiveConflict = useCallback((
+    conflictId: string,
+    strategy: 'keep_local' | 'keep_remote' | 'custom_merge',
+    customData?: Record<string, any>
+  ) => {
+    resolveSyncConflict(conflictId, strategy);
+    const updatedConflicts = loadSyncConflicts();
+    setSyncConflicts(updatedConflicts);
+    setIsConflictModalOpen(false);
+    setActiveConflict(null);
+
+    const conf = syncConflicts.find((c) => c.id === conflictId);
+    if (conf && (strategy === 'keep_remote' || strategy === 'custom_merge')) {
+      const finalData = strategy === 'keep_remote' ? conf.remoteData : (customData || conf.localData);
+      if (conf.entityType === 'company') {
+        updateCompany(conf.entityId, finalData);
+      }
+    }
+
+    showToast({
+      type: 'success',
+      title: 'Conflito Resolvido',
+      message: `Estratégia "${strategy === 'keep_local' ? 'Manter Local' : strategy === 'keep_remote' ? 'Aceitar Nuvem' : 'Mesclagem'}" aplicada com sucesso.`,
+    });
+  }, [syncConflicts, updateCompany, showToast]);
+
+  // Restauração Completa de Estado
+  const restoreEntireState = useCallback((payload: LeadionBackupPayload, mode: 'merge' | 'replace') => {
+    // 1. Snapshot automático de segurança
+    const currentPayload: LeadionBackupPayload = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      exportedByDeviceId: getOrCreateDeviceId(),
+      deviceName: getDeviceName(),
+      system: 'LEADION Sales OS',
+      metadata: {
+        totalCompanies: companies.length,
+        totalScripts: scriptsEntities.length,
+        totalFunnels: funnels.length,
+        totalServices: services.length,
+        totalActions: actions.length,
+        totalObjections: objectionsEntities.length,
+      },
+      companies,
+      leads,
+      scripts: scriptsEntities,
+      funnels,
+      services,
+      actions,
+      objections: objectionsEntities,
+      qualificationQuestions,
+      qualificationAnswers,
+      priorityWeights,
+    };
+    saveLocalBackupSnapshot('Auto-Snapshot Pré-Restauração', currentPayload);
+
+    if (mode === 'replace') {
+      if (payload.companies) {
+        setCompanies(payload.companies);
+        localStorage.setItem('leadion-companies', JSON.stringify(payload.companies));
+      }
+      if (payload.leads) {
+        setLeads(payload.leads);
+        localStorage.setItem('leadion-leads', JSON.stringify(payload.leads));
+      }
+      if (payload.scripts) {
+        setScriptsEntities(payload.scripts);
+        localStorage.setItem('leadion-scripts-v2', JSON.stringify(payload.scripts));
+      }
+      if (payload.funnels) {
+        setFunnels(payload.funnels);
+        localStorage.setItem('leadion-funnels-v1', JSON.stringify(payload.funnels));
+      }
+      if (payload.services) {
+        setServices(payload.services);
+        localStorage.setItem('leadion-services-v2', JSON.stringify(payload.services));
+      }
+      if (payload.actions) {
+        setActions(payload.actions);
+        localStorage.setItem('leadion-prospect-actions-v2', JSON.stringify(payload.actions));
+      }
+      if (payload.objections) {
+        setObjectionsEntities(payload.objections);
+        localStorage.setItem('leadion_objections_library_v1', JSON.stringify(payload.objections));
+      }
+      if (payload.qualificationQuestions) {
+        setQualificationQuestions(payload.qualificationQuestions);
+        localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(payload.qualificationQuestions));
+      }
+      if (payload.qualificationAnswers) {
+        setQualificationAnswers(payload.qualificationAnswers);
+        localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(payload.qualificationAnswers));
+      }
+      if (payload.priorityWeights) {
+        updatePriorityWeights(payload.priorityWeights);
+      }
+    } else {
+      if (payload.companies) {
+        const mergedComp = [...companies];
+        payload.companies.forEach((incoming) => {
+          const idx = mergedComp.findIndex((c) => c.id === incoming.id || (c.name.toLowerCase().trim() === incoming.name.toLowerCase().trim()));
+          if (idx >= 0) {
+            const existing = mergedComp[idx];
+            mergedComp[idx] = {
+              ...existing,
+              ...incoming,
+              timeline: [...(existing.timeline || []), ...(incoming.timeline || [])].filter((v, i, a) => a.findIndex((t) => t.id === v.id) === i),
+              activities: [...(existing.activities || []), ...(incoming.activities || [])].filter((v, i, a) => a.findIndex((t) => t.id === v.id) === i),
+            };
+          } else {
+            mergedComp.push(incoming);
+          }
+        });
+        setCompanies(mergedComp);
+        localStorage.setItem('leadion-companies', JSON.stringify(mergedComp));
+      }
+      if (payload.scripts) {
+        const mergedScripts = [...scriptsEntities];
+        payload.scripts.forEach((sc) => {
+          if (!mergedScripts.some((s) => s.id === sc.id)) mergedScripts.push(sc);
+        });
+        setScriptsEntities(mergedScripts);
+        localStorage.setItem('leadion-scripts-v2', JSON.stringify(mergedScripts));
+      }
+    }
+
+    enqueueOfflineMutation('company', 'UPDATE', 'bulk-restore', { mode, timestamp: new Date().toISOString() });
+    setPendingMutations(loadPendingQueue());
+  }, [companies, scriptsEntities, funnels, services, actions, objectionsEntities, qualificationQuestions, qualificationAnswers, priorityWeights, leads, savePriorityWeights]);
+
+  // Importação Tabular de Empresas
+  const importCompaniesList = useCallback((imported: Partial<Company>[], mode: 'merge' | 'create_only') => {
+    const now = new Date();
+    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    setCompanies((prev) => {
+      const result = [...prev];
+      imported.forEach((item) => {
+        const name = item.name?.trim();
+        if (!name) return;
+
+        const existingIdx = result.findIndex((c) => c.name.toLowerCase().trim() === name.toLowerCase().trim());
+
+        if (existingIdx >= 0 && mode === 'merge') {
+          result[existingIdx] = {
+            ...result[existingIdx],
+            ...item,
+            updatedAt: formattedDate,
+          };
+        } else if (existingIdx < 0) {
+          const newComp: Company = {
+            id: `comp-imp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            name: name,
+            niche: item.niche || 'Geral B2B',
+            country: item.country || 'Moçambique',
+            city: item.city || 'Maputo',
+            state: item.state || '',
+            location: item.location || `${item.city || 'Maputo'} - ${item.country || 'Moçambique'}`,
+            address: item.address || '',
+            website: item.website || '',
+            phone: item.phone || '',
+            whatsapp: item.whatsapp || item.phone || '',
+            email: item.email || '',
+            additionalContacts: [],
+            socials: {},
+            responsibles: [
+              {
+                id: `resp-${Date.now()}`,
+                name: 'Decisor Principal',
+                role: 'Diretor / Sócio',
+                phone: item.phone || '',
+                whatsapp: item.phone || '',
+                email: item.email || '',
+                notes: '',
+                isPrimary: true,
+              }
+            ],
+            unitsCount: 1,
+            businessType: 'B2B',
+            size: '11-50 colaboradores',
+            leadSource: 'Importação CSV',
+            status: 'active',
+            associatedServices: [],
+            funnelId: 'funnel-b2b-default',
+            funnelStage: 'prospeccao',
+            funnelStageId: 'stg-primeira-abordagem',
+            funnelStageName: 'Primeira abordagem',
+            score: 75,
+            commercialNotes: item.commercialNotes || 'Importado via CSV',
+            timeline: [
+              {
+                id: `evt-imp-${Date.now()}`,
+                timestamp: `${formattedDate} ${formattedTime}`,
+                type: 'empresa_criada',
+                title: 'Empresa importada',
+                detail: 'Cadastro realizado por importação tabular CSV.',
+                author: 'Sistema (Importador)',
+              }
+            ],
+            activities: [],
+            createdAt: formattedDate,
+            updatedAt: formattedDate,
+            segment: item.niche || 'Geral B2B',
+            domain: item.website || '',
+            icpScore: 75,
+            employeesRange: '11-50 colaboradores',
+            recentTriggers: ['Empresa recém-importada'],
+            activeLeadsCount: 1,
+          };
+          result.push(newComp);
+        }
+      });
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('leadion-companies', JSON.stringify(result));
+      }
+      return result;
+    });
+
+    enqueueOfflineMutation('company', 'CREATE', 'bulk-csv-import', { count: imported.length });
+    setPendingMutations(loadPendingQueue());
+  }, []);
+
+  // Simulação de conflito remoto para testes de robustez
+  const simulateRemoteConflict = useCallback(() => {
+    if (companies.length === 0) return;
+    const target = companies[0];
+    const conflict = recordSyncConflict({
+      entityType: 'company',
+      entityId: target.id,
+      entityTitle: target.name,
+      localVersion: (target as any).version || 1,
+      remoteVersion: ((target as any).version || 1) + 1,
+      localTimestamp: new Date().toISOString(),
+      remoteTimestamp: new Date(Date.now() - 3600000).toISOString(),
+      localData: {
+        phone: target.phone,
+        funnelStageName: target.funnelStageName || 'Qualificação',
+        score: target.score || 80,
+      },
+      remoteData: {
+        phone: '+258 84 999 8888',
+        funnelStageName: 'Proposta Apresentada',
+        score: 95,
+      },
+      conflictingFields: ['phone', 'funnelStageName', 'score'],
+    });
+
+    setSyncConflicts(loadSyncConflicts());
+    openConflictResolutionModal(conflict);
+    showToast({
+      type: 'warning',
+      title: 'Conflito Simulado',
+      message: `Simulação de edição concorrente no dispositivo remoto criada para ${target.name}.`,
+    });
+  }, [companies, openConflictResolutionModal, showToast]);
+
   return (
     <LeadionContext.Provider
       value={{
@@ -2488,6 +3126,15 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         objectionDispatchData,
         openObjectionDispatchModal,
 
+        // Outcome Modal
+        isOutcomeModalOpen,
+        setIsOutcomeModalOpen,
+        outcomeModalAction,
+        setOutcomeModalAction,
+        openActionOutcomeModal,
+        closeActionOutcomeModal,
+        resolveActionWithOutcome,
+
         isNewLeadModalOpen,
         setIsNewLeadModalOpen,
         todayMetrics,
@@ -2500,6 +3147,28 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         qualificationAnswers,
         saveCompanyQualificationAnswers,
         getCompanyScoreResult,
+
+        // Offline-First & Sync Engine
+        syncStatus,
+        pendingMutations,
+        syncConflicts,
+        lastSyncTime,
+        lastSyncError,
+        triggerCloudSync,
+        isSyncCenterModalOpen,
+        setIsSyncCenterModalOpen,
+        isDataManagementModalOpen,
+        setIsDataManagementModalOpen,
+        dataManagementDefaultTab,
+        openDataManagementModal,
+        isConflictModalOpen,
+        setIsConflictModalOpen,
+        activeConflict,
+        openConflictResolutionModal,
+        resolveActiveConflict,
+        restoreEntireState,
+        importCompaniesList,
+        simulateRemoteConflict,
       }}
     >
       {children}

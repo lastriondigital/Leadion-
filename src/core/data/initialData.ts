@@ -398,18 +398,18 @@ export const INITIAL_COMPANIES: Company[] = [
     size: '15-30 colaboradores',
     leadSource: 'Prospecção Ativa - Instagram & Google Maps',
     commercialNotes: 'Excelente reputação em Maputo, porém sem página de captura com direcionamento rápido para conversão no WhatsApp.',
-    score: 94,
-    funnelStage: 'prospeccao',
+    score: 91,
+    funnelStage: 'contato_feito',
     status: 'active',
     associatedServices: ['serv-lp-01', 'serv-03'],
     nextAction: {
       actionType: 'send_whatsapp',
-      label: 'Primeira abordagem',
-      dueDate: 'Hoje',
+      label: 'Enviar Follow-up #1',
+      dueDate: '13/09/2026',
       dueTime: '09:30',
       channel: 'whatsapp',
       responsibleName: 'Manuel Domingos',
-      notes: 'Enviar script de alta conversão para WhatsApp destacando estrutura de Landing Page.',
+      notes: 'Follow-up de cadência atrasado. Dra. Samira Patel é a decisora identificada com alto interesse.',
     },
     timeline: [
       {

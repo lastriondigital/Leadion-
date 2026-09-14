@@ -4,7 +4,7 @@ export type ScriptChannel = 'whatsapp' | 'email' | 'linkedin' | 'phone' | 'insta
 export type ScriptGender = 'all' | 'masculino' | 'feminino' | 'neutro';
 export type ScriptStatus = 'active' | 'archived' | 'draft';
 export type DelayUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'custom';
-export type DelayEvent = 'previous_sent' | 'opened' | 'no_reply' | 'manual';
+export type DelayEvent = 'previous_sent' | 'opened' | 'no_reply' | 'manual' | 'custom';
 export type WhatsAppDispatchStatus = 'preparado' | 'aberto' | 'enviado_manualmente' | 'nao_enviado';
 
 export interface ScriptDelayConfig {

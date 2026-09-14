@@ -12,7 +12,7 @@ export function interpolateObjectionScript(
 ): string {
   if (!template) return '';
 
-  const contactName = company?.decisionMakerName || company?.name?.split(' ')[0] || 'Decisor';
+  const contactName = company?.decisionMakerName || company?.responsibles?.find((r) => r.isPrimary)?.name || company?.responsibles?.[0]?.name || company?.name?.split(' ')[0] || 'Decisor';
   const compName = company?.name || 'sua empresa';
   const city = company?.city || company?.address || 'sua região';
   const country = company?.country || 'Moçambique';
@@ -20,7 +20,7 @@ export function interpolateObjectionScript(
   const service = serviceName || company?.serviceInterest || 'nossos serviços';
   const operator = responsibleName || 'Manuel Domingos';
   const website = company?.website || company?.domain || '';
-  const instagram = company?.instagram || '';
+  const instagram = company?.instagram || company?.socials?.instagram || '';
 
   // Determinação de moeda e preço com base no país
   let currency = 'MT';

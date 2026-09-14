@@ -1,6 +1,6 @@
 {
   "name": "LEADION",
-  "description": "Sales OS e motor de prospecção inteligente com construtor de scripts e sequências multicanal, catálogo de serviços multipaís e fila prioritária de execução diária.",
+  "description": "Sales OS e motor de prospecção inteligente com construtor de scripts multicanal, catálogo de serviços multipaís, fila prioritária de execução e módulo analítico de inteligência comercial.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

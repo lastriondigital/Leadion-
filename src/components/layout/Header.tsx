@@ -6,11 +6,14 @@ import {
   Sun, 
   Zap, 
   SlidersHorizontal,
-  Bell
+  Bell,
+  Database,
+  Cloud
 } from 'lucide-react';
 import { useLeadion } from '../../context/LeadionContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/Button';
+import { SyncStatusBadge } from '../sync/SyncStatusBadge';
 
 export const Header: React.FC = () => {
   const { 
@@ -20,8 +23,13 @@ export const Header: React.FC = () => {
     setIsNewLeadModalOpen,
     setIsNewCompanyModalOpen,
     setEditingCompany,
-    todayMetrics 
-  } = useLeadion();
+    todayMetrics,
+    syncStatus,
+    pendingMutations,
+    syncConflicts,
+    setIsSyncCenterModalOpen,
+    openDataManagementModal
+  } = useLeadion() as any;
   const { theme, toggleTheme } = useTheme();
 
   const getNavTitle = () => {
@@ -110,6 +118,25 @@ export const Header: React.FC = () => {
             className="w-full bg-zinc-50 dark:bg-zinc-900 border border-[#E6E8EC] dark:border-[#232836] rounded-[11px] py-1.5 pl-8 pr-3 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF] focus:ring-2 focus:ring-[#635BFF]/20"
           />
         </div>
+
+        {/* Sync Status Badge (Offline-First Indicator) */}
+        <SyncStatusBadge
+          status={syncStatus}
+          pendingCount={pendingMutations?.length || 0}
+          conflictsCount={syncConflicts?.filter((c: any) => !c.resolved).length || 0}
+          onClick={() => setIsSyncCenterModalOpen(true)}
+        />
+
+        {/* Data & Backup Quick Action Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          icon={<Database className="w-3.5 h-3.5 text-[#635BFF]" />}
+          onClick={() => openDataManagementModal('backup')}
+          className="hidden lg:inline-flex"
+        >
+          <span>Backup & Dados</span>
+        </Button>
 
         {/* New Action Button */}
         {activeNav === 'companies' ? (
