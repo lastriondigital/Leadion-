@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { DesktopSidebar } from './DesktopSidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
+import { MobileTopBar } from './MobileTopBar';
+import { MobileMoreDrawer } from './MobileMoreDrawer';
+import { GlobalSearchModal } from './GlobalSearchModal';
 import { useLeadion } from '../../context/LeadionContext';
 import { ProspectTodayView } from '../prospecting/ProspectTodayView';
 import { CompaniesView } from '../views/CompaniesView';
@@ -51,6 +54,7 @@ export const AppShell: React.FC = () => {
     setPlanningPreselectedCompany,
     scriptsEntities,
     openWhatsAppForCompany,
+    openObjectionDispatchModal,
     isObjectionDispatchModalOpen,
     setIsObjectionDispatchModalOpen,
     objectionDispatchData,
@@ -68,6 +72,9 @@ export const AppShell: React.FC = () => {
     activeConflict,
     resolveActiveConflict,
   } = useLeadion() as any;
+
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
 
   const renderActiveView = () => {
     switch (activeNav) {
@@ -102,16 +109,35 @@ export const AppShell: React.FC = () => {
       <DesktopSidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-8">
+      <div className="flex-1 flex flex-col min-w-0 pb-[calc(76px+env(safe-area-inset-bottom,0px))] md:pb-8">
+        {/* Mobile Top Bar */}
+        <MobileTopBar 
+          onOpenSearch={() => setIsGlobalSearchOpen(true)}
+          onOpenMore={() => setIsMobileMoreOpen(true)}
+        />
+
+        {/* Desktop Header */}
         <Header />
         
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 min-w-0">
           {renderActiveView()}
         </main>
       </div>
 
       {/* Mobile Bottom Navigation */}
       <MobileNav />
+
+      {/* Mobile "Mais" Drawer */}
+      <MobileMoreDrawer
+        isOpen={isMobileMoreOpen}
+        onClose={() => setIsMobileMoreOpen(false)}
+      />
+
+      {/* Global Real Search Modal */}
+      <GlobalSearchModal
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+      />
 
       {/* Global Interactive Execution Drawer */}
       <ExecutionDrawer />
@@ -160,9 +186,9 @@ export const AppShell: React.FC = () => {
             setIsPlanningModalOpen(true);
           }}
           onOpenObjection={() => {
-            openObjectionModal(
-              whatsAppModalData.company.name,
-              whatsAppModalData.company.targetContactName
+            openObjectionDispatchModal(
+              whatsAppModalData.company,
+              whatsAppModalData.actionId
             );
           }}
           onNextMessage={() => {

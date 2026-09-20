@@ -13,7 +13,8 @@ import {
   Sparkles, 
   CheckCircle2, 
   Layers, 
-  ShieldCheck 
+  ShieldCheck,
+  Trophy
 } from 'lucide-react';
 
 interface StageTransitionModalProps {
@@ -37,6 +38,7 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
   const [responsible, setResponsible] = useState<string>('');
   const [transitionDate, setTransitionDate] = useState<string>('');
   const [transitionTime, setTransitionTime] = useState<string>('');
+  const [dealValue, setDealValue] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
       setTransitionDate(`${d}/${m}/${y}`);
       setTransitionTime(`${hh}:${mm}`);
       setResponsible(userName || 'Manuel Domingos');
+      setDealValue(company.dealValue || company.estimatedRevenue || 'R$ 6.800');
       setNotes('');
 
       if (initialTargetStageId) {
@@ -71,6 +74,9 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
 
   const currentStage = funnel.stages.find((s) => s.id === company.funnelStageId);
   const targetStage = funnel.stages.find((s) => s.id === selectedStageId);
+  const isWonStage = targetStage?.id === 'cliente' || 
+    targetStage?.name?.toLowerCase().includes('cliente') || 
+    targetStage?.name?.toLowerCase().includes('ganho');
 
   const currentColor = currentStage ? FUNNEL_COLOR_PRESETS[currentStage.color || 'zinc'] : FUNNEL_COLOR_PRESETS.zinc;
   const targetColor = targetStage ? FUNNEL_COLOR_PRESETS[targetStage.color || 'zinc'] : FUNNEL_COLOR_PRESETS.zinc;
@@ -85,6 +91,7 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
       targetFunnelId: funnel.id,
       responsibleName: responsible.trim() || userName || 'Manuel Domingos',
       notes: notes.trim() || undefined,
+      dealValue: isWonStage ? (dealValue.trim() || 'R$ 6.800') : undefined,
     });
 
     onClose();
@@ -251,6 +258,32 @@ export const StageTransitionModal: React.FC<StageTransitionModalProps> = ({
             />
           </div>
         </div>
+
+        {/* Won Stage Deal Value Registration (Updates Statistics) */}
+        {isWonStage && (
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 space-y-1.5 animate-in fade-in duration-150">
+            <label className="block text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                Valor do Negócio Fechado / Contrato *
+              </span>
+              <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 tracking-wider">
+                Atualiza Estatísticas
+              </span>
+            </label>
+            <input
+              type="text"
+              required
+              value={dealValue}
+              onChange={(e) => setDealValue(e.target.value)}
+              placeholder="Ex: R$ 6.800, 10.000 MT, etc."
+              className="w-full text-xs font-bold font-mono px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-zinc-900 text-emerald-900 dark:text-emerald-100 focus:ring-2 focus:ring-emerald-500/30"
+            />
+            <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+              Este valor será consolidado automaticamente na taxa de conversão e receita fechada das estatísticas.
+            </p>
+          </div>
+        )}
 
         {/* Transition Observation / Notes */}
         <div>

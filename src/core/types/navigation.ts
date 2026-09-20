@@ -11,11 +11,11 @@ export type DesktopNavId =
   | 'settings';     // Configurações
 
 export type MobileNavId = 
-  | 'today'         // Hoje
+  | 'today'         // Hoje (Prospectar hoje)
   | 'companies'     // Empresas
   | 'funnels'       // Funis
   | 'scripts'       // Scripts
-  | 'more';         // Mais (Abre drawer com Objeções, Serviços, Calendário, Estatísticas, Configurações)
+  | 'calendar';     // Agenda (Ações agrupadas: Atrasadas, Hoje, Próximas)
 
 export interface NavItemConfig {
   id: DesktopNavId;

@@ -39,7 +39,8 @@ import {
   Layers,
   Check,
   Scale,
-  HelpCircle
+  HelpCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { WhyThisScoreModal } from '../qualification/WhyThisScoreModal';
 import { CompanyQualificationModal } from '../qualification/CompanyQualificationModal';
@@ -73,6 +74,10 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
     toggleCompanyActivity,
     setEditingCompany,
     setIsNewCompanyModalOpen,
+    openWhatsAppForCompany,
+    openObjectionDispatchModal,
+    setIsPlanningModalOpen,
+    setPlanningPreselectedCompany,
     services,
     scripts,
     objections,
@@ -144,20 +149,20 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
   };
 
   const detailTabs: TabItem[] = [
-    { id: 'overview', label: 'Visão Geral & Cadastro', icon: <Building2 className="w-3.5 h-3.5" /> },
+    { id: 'overview', label: 'Visão Geral', icon: <Building2 className="w-3.5 h-3.5" /> },
     { 
       id: 'qualification', 
-      label: `Qualificação (${scoreResult.clientScore}/100)`, 
+      label: `Qualificação (${scoreResult.clientScore})`, 
       icon: <Scale className="w-3.5 h-3.5" /> 
     },
     { 
       id: 'activities', 
-      label: 'Próxima Ação & Atividades', 
+      label: 'Atividades', 
       icon: <Clock className="w-3.5 h-3.5" />,
       count: (company.activities || []).filter((a) => !a.completed).length 
     },
-    { id: 'timeline', label: 'Histórico & Timeline', icon: <Layers className="w-3.5 h-3.5" /> },
-    { id: 'offer', label: 'Serviços & Proposta', icon: <Briefcase className="w-3.5 h-3.5" /> },
+    { id: 'timeline', label: 'Histórico', icon: <Layers className="w-3.5 h-3.5" /> },
+    { id: 'offer', label: 'Serviços', icon: <Briefcase className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -171,7 +176,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
             onClick={onBack}
             icon={<ArrowLeft className="w-3.5 h-3.5" />}
           >
-            Voltar para Todas as Empresas
+            Voltar
           </Button>
 
           <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">|</span>
@@ -186,6 +191,34 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => openWhatsAppForCompany(company)}
+            icon={<Send className="w-3.5 h-3.5" />}
+            className="shadow-xs"
+          >
+            WhatsApp
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openObjectionDispatchModal(company)}
+            icon={<ShieldAlert className="w-3.5 h-3.5 text-amber-500" />}
+          >
+            Objeção
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPlanningPreselectedCompany(company);
+              setIsPlanningModalOpen(true);
+            }}
+            icon={<Calendar className="w-3.5 h-3.5 text-[#635BFF]" />}
+          >
+            Agendar
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -362,7 +395,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
               }}
               className="text-xs h-7 px-2.5"
             >
-              Mover de Etapa (Auditável)
+              Mover etapa
             </Button>
           </div>
 
@@ -424,27 +457,37 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {primaryResponsible?.whatsapp ? (
-            <a
-              href={getWhatsAppLink(primaryResponsible.whatsapp)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-[10px] bg-[#635BFF] hover:bg-[#5249ea] text-white text-xs font-bold transition-all shadow-xs"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Executar com Script Agora</span>
-            </a>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setActiveTab('activities')}
-              icon={<Send className="w-3.5 h-3.5" />}
-            >
-              Ver Tarefas da Conta
-            </Button>
-          )}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => openWhatsAppForCompany(company)}
+            icon={<Send className="w-3.5 h-3.5" />}
+            className="shadow-xs"
+          >
+            WhatsApp
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openObjectionDispatchModal(company)}
+            icon={<ShieldAlert className="w-3.5 h-3.5 text-amber-500" />}
+          >
+            Objeção
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPlanningPreselectedCompany(company);
+              setIsPlanningModalOpen(true);
+            }}
+            icon={<Calendar className="w-3.5 h-3.5 text-[#635BFF]" />}
+          >
+            Programar
+          </Button>
         </div>
       </div>
 
@@ -478,7 +521,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
                   onClick={handleEdit}
                   icon={<Edit3 className="w-3 h-3" />}
                 >
-                  Gerenciar Decisores
+                  Editar decisores
                 </Button>
               </div>
 
@@ -841,7 +884,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
                 onClick={handleEdit}
                 icon={<Edit3 className="w-3 h-3" />}
               >
-                Alterar Serviços
+                Editar serviços
               </Button>
             </div>
 
@@ -1156,7 +1199,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company, o
               onClick={handleDeleteConfirm}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
-              Sim, Excluir Empresa
+              Excluir
             </Button>
           </div>
         }

@@ -439,7 +439,7 @@ export const ActionPlanningModal: React.FC = () => {
             className="bg-[#635BFF] hover:bg-[#5248E5] text-white"
           >
             <CheckCircle2 className="w-4 h-4 mr-1.5" />
-            Salvar e Inserir na Fila
+            Salvar na fila
           </Button>
         </div>
       </form>

@@ -150,7 +150,7 @@ export const ProspectTodayView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* [Regras de Prioridade] */}
+            {/* [Prioridade] */}
             <Button
               variant="outline"
               size="sm"
@@ -159,10 +159,10 @@ export const ProspectTodayView: React.FC = () => {
               title="Configurar regras e pesos do motor de prioridade"
             >
               <Sliders className="w-3.5 h-3.5 mr-1.5 text-[#635BFF]" />
-              Regras de Prioridade
+              Prioridade
             </Button>
 
-            {/* [+ Programar Prospecção] */}
+            {/* [Programar] */}
             <Button
               variant="primary"
               size="sm"
@@ -173,7 +173,7 @@ export const ProspectTodayView: React.FC = () => {
               className="bg-[#635BFF] hover:bg-[#5248E5] text-white text-xs font-semibold shadow-xs"
             >
               <Plus className="w-4 h-4 mr-1" />
-              Programar Prospecção
+              Programar
             </Button>
           </div>
         </div>
@@ -191,12 +191,12 @@ export const ProspectTodayView: React.FC = () => {
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
                 Fila Geral
               </span>
               <Inbox className="w-3.5 h-3.5 text-[#635BFF]" />
             </div>
-            <div className="text-xl font-extrabold text-[#111318] mt-1 font-mono">
+            <div className="text-xl font-bold tabular-nums text-[#111318] mt-1">
               {actionCounters.atrasadas + actionCounters.hoje + actionCounters.proxima}
             </div>
           </button>
@@ -213,7 +213,7 @@ export const ProspectTodayView: React.FC = () => {
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-[11px] font-bold uppercase tracking-wider ${
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${
                 actionCounters.atrasadas > 0 ? 'text-rose-600' : 'text-zinc-400'
               }`}>
                 Atrasadas
@@ -222,7 +222,7 @@ export const ProspectTodayView: React.FC = () => {
                 actionCounters.atrasadas > 0 ? 'text-rose-600' : 'text-zinc-400'
               }`} />
             </div>
-            <div className={`text-xl font-extrabold mt-1 font-mono ${
+            <div className={`text-xl font-bold tabular-nums mt-1 ${
               actionCounters.atrasadas > 0 ? 'text-rose-700' : 'text-zinc-700'
             }`}>
               {actionCounters.atrasadas}
@@ -239,12 +239,12 @@ export const ProspectTodayView: React.FC = () => {
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-700">
                 Para Hoje
               </span>
               <Clock className="w-3.5 h-3.5 text-[#635BFF]" />
             </div>
-            <div className="text-xl font-extrabold text-[#635BFF] mt-1 font-mono">
+            <div className="text-xl font-bold tabular-nums text-[#635BFF] mt-1">
               {actionCounters.hoje}
             </div>
           </button>
@@ -259,14 +259,14 @@ export const ProspectTodayView: React.FC = () => {
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-[11px] font-bold uppercase tracking-wider ${
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${
                 activeTab === 'proxima' ? 'text-zinc-300' : 'text-zinc-400'
               }`}>
                 Próximas
               </span>
               <Calendar className="w-3.5 h-3.5 text-zinc-400" />
             </div>
-            <div className={`text-xl font-extrabold mt-1 font-mono ${
+            <div className={`text-xl font-bold tabular-nums mt-1 ${
               activeTab === 'proxima' ? 'text-white' : 'text-[#111318]'
             }`}>
               {actionCounters.proxima}
@@ -314,7 +314,7 @@ export const ProspectTodayView: React.FC = () => {
                 actionCounters.semProximaAcao > 0 ? 'text-amber-600' : 'text-zinc-400'
               }`} />
             </div>
-            <div className={`text-xl font-extrabold mt-1 font-mono ${
+            <div className={`text-xl font-bold tabular-nums mt-1 ${
               actionCounters.semProximaAcao > 0 ? 'text-amber-800' : 'text-zinc-700'
             }`}>
               {actionCounters.semProximaAcao}
@@ -360,7 +360,7 @@ export const ProspectTodayView: React.FC = () => {
               className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"
             >
               <Calendar className="w-3.5 h-3.5 mr-1" />
-              Programar Agora
+              Programar
             </Button>
           </div>
         </div>
@@ -398,7 +398,7 @@ export const ProspectTodayView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-extrabold text-[#111318] tracking-tight uppercase">
+              <h2 className="text-lg sm:text-xl font-bold text-[#111318] tracking-tight">
                 Prospectar Hoje
               </h2>
               <span className="text-xs font-mono font-bold bg-[#635BFF]/10 text-[#635BFF] px-2 py-0.5 rounded-full">

@@ -63,16 +63,16 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
           label: 'WhatsApp',
           icon: <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />,
           color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          actionLabel: 'ABRIR WHATSAPP',
+          actionLabel: 'Abrir WhatsApp',
           actionIcon: <MessageSquare className="w-4 h-4 mr-1.5" />,
           actionBg: 'bg-[#635BFF] hover:bg-[#5248E5] text-white',
         };
       case 'phone':
         return {
-          label: 'Telefone / Ligação',
+          label: 'Telefone',
           icon: <Phone className="w-3.5 h-3.5 text-blue-600" />,
           color: 'bg-blue-50 text-blue-700 border-blue-200',
-          actionLabel: 'LIGAR AGORA',
+          actionLabel: 'Ligar',
           actionIcon: <Phone className="w-4 h-4 mr-1.5" />,
           actionBg: 'bg-[#635BFF] hover:bg-[#5248E5] text-white',
         };
@@ -81,7 +81,7 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
           label: 'E-mail',
           icon: <Mail className="w-3.5 h-3.5 text-amber-600" />,
           color: 'bg-amber-50 text-amber-700 border-amber-200',
-          actionLabel: 'ENVIAR E-MAIL',
+          actionLabel: 'Enviar e-mail',
           actionIcon: <Mail className="w-4 h-4 mr-1.5" />,
           actionBg: 'bg-[#635BFF] hover:bg-[#5248E5] text-white',
         };
@@ -90,16 +90,16 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
           label: 'LinkedIn',
           icon: <Linkedin className="w-3.5 h-3.5 text-indigo-600" />,
           color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-          actionLabel: 'ABRIR LINKEDIN',
+          actionLabel: 'Abrir LinkedIn',
           actionIcon: <Linkedin className="w-4 h-4 mr-1.5" />,
           actionBg: 'bg-[#635BFF] hover:bg-[#5248E5] text-white',
         };
       case 'reuniao':
         return {
-          label: 'Reunião Virtual',
+          label: 'Reunião',
           icon: <Video className="w-3.5 h-3.5 text-violet-600" />,
           color: 'bg-violet-50 text-violet-700 border-violet-200',
-          actionLabel: 'INICIAR REUNIÃO',
+          actionLabel: 'Iniciar reunião',
           actionIcon: <Video className="w-4 h-4 mr-1.5" />,
           actionBg: 'bg-[#635BFF] hover:bg-[#5248E5] text-white',
         };
@@ -108,7 +108,7 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
           label: ch,
           icon: <MessageSquare className="w-3.5 h-3.5 text-zinc-600" />,
           color: 'bg-zinc-50 text-zinc-700 border-zinc-200',
-          actionLabel: 'EXECUTAR AÇÃO',
+          actionLabel: 'Executar ação',
           actionIcon: <MessageSquare className="w-4 h-4 mr-1.5" />,
           actionBg: 'bg-[#635BFF] hover:bg-[#5248E5] text-white',
         };
@@ -414,46 +414,46 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
                 </button>
               )}
 
-              {/* Sub-botões táticos: [VER EMPRESA] [PROGRAMAR] [CONCLUIR] */}
+              {/* Sub-botões táticos: Empresa, Programar, Concluir */}
               <div className="grid grid-cols-3 gap-1.5">
                 
-                {/* [VER EMPRESA] */}
+                {/* Empresa */}
                 <button
                   onClick={handleViewCompany}
-                  className="py-1.5 px-2 rounded-md border border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50 text-[11px] font-semibold text-zinc-700 flex items-center justify-center gap-1 transition-colors"
-                  title="Ver ficha completa da empresa"
+                  className="min-h-[40px] py-1.5 px-2 rounded-md border border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50 text-xs font-semibold text-zinc-700 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  title="Ver detalhes da empresa"
                 >
-                  <Building2 className="w-3 h-3 text-zinc-500" />
-                  <span className="truncate">EMPRESA</span>
+                  <Building2 className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  <span className="truncate">Empresa</span>
                 </button>
 
-                {/* [PROGRAMAR] */}
+                {/* Programar */}
                 <button
                   onClick={handleProgramAction}
-                  className="py-1.5 px-2 rounded-md border border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50 text-[11px] font-semibold text-zinc-700 flex items-center justify-center gap-1 transition-colors"
-                  title="Programar próxima data e canal"
+                  className="min-h-[40px] py-1.5 px-2 rounded-md border border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50 text-xs font-semibold text-zinc-700 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  title="Programar data e canal"
                 >
-                  <Calendar className="w-3 h-3 text-indigo-500" />
-                  <span className="truncate">PROGRAMAR</span>
+                  <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span className="truncate">Programar</span>
                 </button>
 
-                {/* [CONCLUIR] ou [REABRIR] */}
+                {/* Concluir ou Reabrir */}
                 {isCompleted ? (
                   <button
                     onClick={() => reopenAction(action.id)}
-                    className="py-1.5 px-2 rounded-md border border-zinc-200 bg-zinc-100 hover:bg-zinc-200 text-[11px] font-semibold text-zinc-700 flex items-center justify-center gap-1 transition-colors"
+                    className="min-h-[40px] py-1.5 px-2 rounded-md border border-zinc-200 bg-zinc-100 hover:bg-zinc-200 text-xs font-semibold text-zinc-700 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                   >
-                    <RotateCcw className="w-3 h-3 text-zinc-500" />
-                    <span>REABRIR</span>
+                    <RotateCcw className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                    <span>Reabrir</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => openActionOutcomeModal(action)}
-                    className="py-1.5 px-2 rounded-md border border-emerald-200 hover:border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-[11px] font-semibold text-emerald-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                    title="Concluir atividade & calcular próxima ação"
+                    className="min-h-[40px] py-1.5 px-2 rounded-md border border-emerald-200 hover:border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-xs font-semibold text-emerald-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    title="Concluir atividade e calcular próxima ação"
                   >
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    <span>CONCLUIR</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Concluir</span>
                   </button>
                 )}
               </div>
@@ -461,41 +461,41 @@ export const SmartProspectActionCard: React.FC<SmartProspectActionCardProps> = (
               {/* AÇÕES DE CADÊNCIA PÓS-PRIMEIRA MENSAGEM */}
               {!isCompleted && !isCancelled && (
                 <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                    Ações de Cadência:
+                  <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                    Cadência:
                   </div>
                   <div className="grid grid-cols-3 gap-1">
-                    {/* [PROGRAMAR FOLLOW-UP] */}
+                    {/* Follow-up */}
                     <button
                       type="button"
                       onClick={handleProgramFollowUp}
-                      className="py-1.5 px-1.5 rounded-md border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-[10px] font-bold text-indigo-900 dark:text-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="min-h-[38px] py-1.5 px-1.5 rounded-md border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-[11px] font-semibold text-indigo-900 dark:text-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                       title="Programar data e hora do follow-up"
                     >
                       <Clock className="w-3 h-3 text-[#635BFF] shrink-0" />
-                      <span className="truncate">FOLLOW-UP</span>
+                      <span className="truncate">Follow-up</span>
                     </button>
 
-                    {/* [OBJEÇÃO] */}
+                    {/* Objeção */}
                     <button
                       type="button"
                       onClick={handleOpenObjection}
-                      className="py-1.5 px-1.5 rounded-md border border-amber-200 bg-amber-50/60 hover:bg-amber-100 text-[10px] font-bold text-amber-900 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                      title="Abrir Matriz de Contorno de Objeções"
+                      className="min-h-[38px] py-1.5 px-1.5 rounded-md border border-amber-200 bg-amber-50/60 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      title="Abrir contorno de objeções"
                     >
                       <ShieldAlert className="w-3 h-3 text-amber-600 shrink-0" />
-                      <span className="truncate">OBJEÇÃO</span>
+                      <span className="truncate">Objeção</span>
                     </button>
 
-                    {/* [PRÓXIMA MENSAGEM] */}
+                    {/* Próxima mensagem */}
                     <button
                       type="button"
                       onClick={handleNextMessage}
-                      className="py-1.5 px-1.5 rounded-md border border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100 text-[10px] font-bold text-emerald-900 dark:text-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      className="min-h-[38px] py-1.5 px-1.5 rounded-md border border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100 text-[11px] font-semibold text-emerald-900 dark:text-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                       title="Avançar para a próxima mensagem da sequência"
                     >
                       <ArrowRight className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <span className="truncate">PRÓX. MSG</span>
+                      <span className="truncate">Próx. msg</span>
                     </button>
                   </div>
                 </div>

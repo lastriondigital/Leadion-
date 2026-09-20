@@ -31,6 +31,7 @@ interface ObjectionDispatchModalProps {
   company?: Company | null;
   actionId?: string;
   initialObjectionId?: string;
+  preselectedObjectionId?: string;
 }
 
 export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
@@ -39,7 +40,9 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
   company: initialCompany,
   actionId,
   initialObjectionId,
+  preselectedObjectionId,
 }) => {
+  const effectiveInitialObjectionId = initialObjectionId || preselectedObjectionId;
   const {
     objectionsEntities,
     companies,
@@ -53,7 +56,7 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(initialCompany?.id || companies[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedObjectionId, setSelectedObjectionId] = useState<string>(initialObjectionId || objectionsEntities[0]?.id || '');
+  const [selectedObjectionId, setSelectedObjectionId] = useState<string>(effectiveInitialObjectionId || objectionsEntities[0]?.id || '');
   const [selectedSequenceId, setSelectedSequenceId] = useState<string>('');
   const [selectedStepIndex, setSelectedStepIndex] = useState<number>(0);
   const [customMessage, setCustomMessage] = useState<string>('');
@@ -65,10 +68,10 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
     if (initialCompany?.id) {
       setSelectedCompanyId(initialCompany.id);
     }
-    if (initialObjectionId) {
-      setSelectedObjectionId(initialObjectionId);
+    if (effectiveInitialObjectionId) {
+      setSelectedObjectionId(effectiveInitialObjectionId);
     }
-  }, [initialCompany, initialObjectionId, isOpen]);
+  }, [initialCompany, effectiveInitialObjectionId, isOpen]);
 
   const activeCompany = companies.find((c) => c.id === selectedCompanyId) || initialCompany || companies[0];
 

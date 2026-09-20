@@ -266,7 +266,13 @@ function calculateMetrics(
       negociacoes++;
     }
 
-    if (stage === 'cliente' || actionWon) {
+    const isWon = stage === 'cliente' || 
+      comp.funnelStageId === 'cliente' || 
+      comp.funnelStageName?.toLowerCase().includes('cliente') || 
+      comp.funnelStageName?.toLowerCase().includes('ganho') || 
+      actionWon;
+
+    if (isWon) {
       ganhos++;
     }
 
@@ -276,7 +282,10 @@ function calculateMetrics(
 
     // Cálculo Financeiro (Potencial vs Fechado)
     let compVal = 0;
-    if (compActions.length > 0) {
+    if (comp.dealValue) {
+      compVal = parseMonetaryValue(comp.dealValue);
+    }
+    if (compVal === 0 && compActions.length > 0) {
       const topAction = compActions[0];
       compVal = parseMonetaryValue(topAction.potentialValue);
     }
@@ -288,9 +297,9 @@ function calculateMetrics(
       compVal = 5500;
     }
 
-    if (stage === 'cliente' || actionWon) {
+    if (isWon) {
       valorFechado += compVal;
-    } else if (stage !== 'desqualificado') {
+    } else if (stage !== 'desqualificado' && !actionLost) {
       valorPotencial += compVal;
     }
   });

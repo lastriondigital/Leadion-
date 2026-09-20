@@ -38,7 +38,7 @@ export const DesktopSidebar: React.FC = () => {
     { id: 'qualification', label: 'Qualificação', icon: Scale },
     { id: 'objections', label: 'Objeções', icon: ShieldAlert },
     { id: 'services', label: 'Serviços', icon: Briefcase },
-    { id: 'calendar', label: 'Calendário', icon: CalendarDays },
+    { id: 'calendar', label: 'Agenda', icon: CalendarDays },
   ];
 
   const bottomNavItems: SidebarItem[] = [

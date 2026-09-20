@@ -188,13 +188,13 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({ lead, index }) => {
             >
               {copied ? (
                 <>
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span className="text-emerald-600 font-bold">Copiado!</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-600 font-semibold">Copiado</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3 h-3" />
-                  <span>Copiar Script</span>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar</span>
                 </>
               )}
             </button>

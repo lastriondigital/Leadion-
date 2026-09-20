@@ -51,6 +51,7 @@ export interface StageTransitionPayload {
   targetFunnelId?: string;
   responsibleName?: string;
   notes?: string;
+  dealValue?: string;
 }
 
 export interface FunnelColorConfig {

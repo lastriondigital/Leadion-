@@ -233,10 +233,10 @@ export const CompaniesView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveNav('qualification')}
-              className="px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-[#635BFF] text-xs font-bold text-[#635BFF] dark:text-[#9A94FF] bg-white dark:bg-zinc-800 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="px-3.5 py-2 min-h-[40px] rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-[#635BFF] text-xs font-semibold text-[#635BFF] dark:text-[#9A94FF] bg-white dark:bg-zinc-800 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <Scale className="w-3.5 h-3.5" />
-              <span>Motor de Qualificação</span>
+              <span>Qualificação</span>
             </button>
 
             <Button
@@ -245,7 +245,7 @@ export const CompaniesView: React.FC = () => {
               onClick={handleOpenNewCompanyModal}
               icon={<Plus className="w-4 h-4" />}
             >
-              Nova Empresa
+              Adicionar empresa
             </Button>
           </div>
         </div>
@@ -253,24 +253,24 @@ export const CompaniesView: React.FC = () => {
         {/* Quick KPI Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
           <div className="p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800">
-            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Total Mapeadas</span>
-            <span className="text-lg font-black text-zinc-900 dark:text-zinc-100">{stats.total}</span>
+            <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Total</span>
+            <span className="text-lg font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{stats.total}</span>
           </div>
           <div className="p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800">
-            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Fila Prospecção</span>
-            <span className="text-lg font-black text-[#635BFF]">{stats.inProspecting}</span>
+            <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Prospecção</span>
+            <span className="text-lg font-bold tabular-nums text-[#635BFF]">{stats.inProspecting}</span>
           </div>
           <div className="p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800">
-            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Reunião / Proposta</span>
-            <span className="text-lg font-black text-purple-600 dark:text-purple-400">{stats.inMeetingOrProposal}</span>
+            <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Reuniões</span>
+            <span className="text-lg font-bold tabular-nums text-purple-600 dark:text-purple-400">{stats.inMeetingOrProposal}</span>
           </div>
           <div className="p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800">
-            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Clientes Ganhos</span>
-            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{stats.clientsWon}</span>
+            <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Ganhos</span>
+            <span className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.clientsWon}</span>
           </div>
           <div className="p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800 col-span-2 sm:col-span-1">
-            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Score Médio ICP</span>
-            <span className="text-lg font-black text-zinc-900 dark:text-zinc-100">{stats.avgScore}/100</span>
+            <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Score médio</span>
+            <span className="text-lg font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{stats.avgScore}/100</span>
           </div>
         </div>
       </div>
@@ -424,7 +424,7 @@ export const CompaniesView: React.FC = () => {
               onClick={handleOpenNewCompanyModal}
               icon={<Plus className="w-3.5 h-3.5" />}
             >
-              Cadastrar Nova Empresa
+              Adicionar empresa
             </Button>
           </div>
         </div>
@@ -489,7 +489,7 @@ export const CompaniesView: React.FC = () => {
                               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-[8px] text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
-                              Editar Empresa
+                              Editar
                             </button>
                             <button
                               type="button"
@@ -579,8 +579,8 @@ export const CompaniesView: React.FC = () => {
                   <span className="text-xs text-zinc-400">
                     {company.responsibles?.length || 1} decisor(es)
                   </span>
-                  <span className="text-xs font-bold text-[#635BFF] group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                    Ver Detalhes
+                  <span className="text-xs font-semibold text-[#635BFF] group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                    Ver empresa
                     <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>

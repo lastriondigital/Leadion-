@@ -11,9 +11,11 @@ export interface ToastItem {
   duration?: number;
 }
 
+export type ShowToastOptions = Omit<ToastItem, 'id'>;
+
 interface ToastContextType {
   toasts: ToastItem[];
-  showToast: (toast: Omit<ToastItem, 'id'>) => void;
+  showToast: (toastOrTitle: ShowToastOptions | string, type?: ToastType, message?: string) => void;
   removeToast: (id: string) => void;
 }
 
@@ -26,13 +28,37 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const showToast = useCallback(({ type, title, message, duration = 3500 }: Omit<ToastItem, 'id'>) => {
+  const showToast = useCallback((toastOrTitle: ShowToastOptions | string, typeOrMessage?: ToastType | string, extraMessage?: string) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, type, title, message, duration }]);
+    let item: ToastItem;
+
+    if (typeof toastOrTitle === 'string') {
+      const isType = (val: any): val is ToastType => ['success', 'info', 'warning', 'error'].includes(val);
+      const effectiveType: ToastType = isType(typeOrMessage) ? typeOrMessage : 'info';
+      const effectiveMessage = isType(typeOrMessage) ? extraMessage : (typeof typeOrMessage === 'string' ? typeOrMessage : undefined);
+
+      item = {
+        id,
+        type: effectiveType,
+        title: toastOrTitle,
+        message: effectiveMessage,
+        duration: 3500,
+      };
+    } else {
+      item = {
+        id,
+        type: toastOrTitle.type || 'info',
+        title: toastOrTitle.title || 'Notificação',
+        message: toastOrTitle.message,
+        duration: toastOrTitle.duration || 3500,
+      };
+    }
+
+    setToasts((prev) => [...prev, item]);
 
     setTimeout(() => {
       removeToast(id);
-    }, duration);
+    }, item.duration || 3500);
   }, [removeToast]);
 
   return (

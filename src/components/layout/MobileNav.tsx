@@ -1,134 +1,100 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Flame, 
   Building2, 
   GitFork, 
   FileText, 
-  MoreHorizontal,
-  ShieldAlert,
-  Briefcase,
-  CalendarDays,
-  BarChart3,
-  Settings,
-  X,
-  Scale
+  CalendarDays 
 } from 'lucide-react';
 import { useLeadion } from '../../context/LeadionContext';
-import { DesktopNavId, MobileNavId } from '../../core/types/navigation';
+import { MobileNavId } from '../../core/types/navigation';
 
 export const MobileNav: React.FC = () => {
-  const { activeNav, setActiveNav, todayMetrics } = useLeadion();
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const { activeNav, setActiveNav, todayMetrics, actions = [] } = useLeadion() as any;
 
-  const mainTabs: Array<{ id: MobileNavId; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
-    { id: 'today', label: 'Hoje', icon: Flame, badge: todayMetrics.totalDueToday },
-    { id: 'companies', label: 'Empresas', icon: Building2 },
-    { id: 'funnels', label: 'Funis', icon: GitFork },
-    { id: 'scripts', label: 'Scripts', icon: FileText },
-    { id: 'more', label: 'Mais', icon: MoreHorizontal },
+  // Contagem de ações pendentes para Hoje e Agenda
+  const dueTodayCount = todayMetrics?.totalDueToday || 0;
+  const overdueCount = actions.filter((a: any) => a.status === 'atrasada').length;
+
+  const tabs: Array<{ 
+    id: MobileNavId; 
+    label: string; 
+    icon: React.ComponentType<{ className?: string }>; 
+    badge?: number;
+    badgeColor?: string;
+  }> = [
+    { 
+      id: 'today', 
+      label: 'Hoje', 
+      icon: Flame, 
+      badge: dueTodayCount 
+    },
+    { 
+      id: 'companies', 
+      label: 'Empresas', 
+      icon: Building2 
+    },
+    { 
+      id: 'funnels', 
+      label: 'Funis', 
+      icon: GitFork 
+    },
+    { 
+      id: 'scripts', 
+      label: 'Scripts', 
+      icon: FileText 
+    },
+    { 
+      id: 'calendar', 
+      label: 'Agenda', 
+      icon: CalendarDays,
+      badge: overdueCount > 0 ? overdueCount : undefined,
+      badgeColor: 'bg-red-500'
+    },
   ];
-
-  const moreItems: Array<{ id: DesktopNavId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-    { id: 'qualification', label: 'Motor de Qualificação', icon: Scale },
-    { id: 'objections', label: 'Objeções & Contornos', icon: ShieldAlert },
-    { id: 'services', label: 'Serviços & Ofertas', icon: Briefcase },
-    { id: 'calendar', label: 'Calendário de Ações', icon: CalendarDays },
-    { id: 'statistics', label: 'Estatísticas', icon: BarChart3 },
-    { id: 'settings', label: 'Configurações', icon: Settings },
-  ];
-
-  const handleTabClick = (tabId: MobileNavId) => {
-    if (tabId === 'more') {
-      setIsMoreOpen(true);
-    } else {
-      setActiveNav(tabId);
-      setIsMoreOpen(false);
-    }
-  };
-
-  const handleMoreSelect = (navId: DesktopNavId) => {
-    setActiveNav(navId);
-    setIsMoreOpen(false);
-  };
 
   return (
-    <>
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111319]/95 backdrop-blur-md border-t border-[#E6E8EC] dark:border-[#232836] px-2 py-1.5 flex items-center justify-around safe-area-bottom">
-        {mainTabs.map((tab) => {
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111319]/95 backdrop-blur-md border-t border-[#E6E8EC] dark:border-[#232836] safe-area-bottom shadow-lg">
+      <div className="grid grid-cols-5 items-center w-full px-1 py-1">
+        {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = tab.id === 'more' 
-            ? ['qualification', 'objections', 'services', 'calendar', 'statistics', 'settings'].includes(activeNav) 
-            : activeNav === tab.id;
+          const isActive = activeNav === tab.id;
 
           return (
             <button
               key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={`flex flex-col items-center justify-center py-1 px-3 rounded-lg min-w-[56px] transition-colors relative cursor-pointer ${
+              onClick={() => setActiveNav(tab.id)}
+              className={`relative flex flex-col items-center justify-center min-h-[50px] py-1 rounded-xl transition-all cursor-pointer select-none ${
                 isActive
-                  ? 'text-[#635BFF] dark:text-[#8D87FF] font-semibold'
-                  : 'text-zinc-500 dark:text-zinc-400 font-medium'
+                  ? 'text-[#635BFF] dark:text-[#9A94FF] font-bold'
+                  : 'text-zinc-500 dark:text-zinc-400 font-medium hover:text-zinc-800 dark:hover:text-zinc-200'
               }`}
+              aria-label={tab.label}
+              aria-current={isActive ? 'page' : undefined}
             >
-              <div className="relative">
-                <Icon className="w-5 h-5" />
+              {/* Indicador visual de ativo no topo da aba */}
+              {isActive && (
+                <span className="absolute top-0 w-8 h-0.5 rounded-full bg-[#635BFF] dark:bg-[#9A94FF]" />
+              )}
+
+              {/* Ícone com badge */}
+              <div className="relative mt-0.5">
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.8]'}`} />
                 {typeof tab.badge === 'number' && tab.badge > 0 && (
-                  <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-[#635BFF] text-white text-[9px] font-bold flex items-center justify-center">
-                    {tab.badge}
+                  <span className={`absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full ${tab.badgeColor || 'bg-[#635BFF]'} text-white text-[9px] font-bold flex items-center justify-center shadow-xs tabular-nums`}>
+                    {tab.badge > 99 ? '99+' : tab.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] mt-1 tracking-tight">{tab.label}</span>
+
+              {/* Label sem quebras estranhas */}
+              <span className={`text-[11px] leading-tight mt-1 whitespace-nowrap tracking-tight ${isActive ? 'font-bold' : 'font-medium'}`}>
+                {tab.label}
+              </span>
             </button>
           );
         })}
-      </nav>
-
-      {/* "Mais" Menu Drawer */}
-      {isMoreOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-zinc-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div
-            className="fixed inset-0"
-            onClick={() => setIsMoreOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="relative z-10 w-full bg-white dark:bg-[#161922] border-t border-[#E6E8EC] dark:border-[#232836] rounded-t-[20px] p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between border-b border-[#E6E8EC]/80 dark:border-[#232836]/80 pb-3">
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                Menu Adicional
-              </span>
-              <button
-                onClick={() => setIsMoreOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 gap-1.5 py-1">
-              {moreItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeNav === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleMoreSelect(item.id)}
-                    className={`flex items-center gap-3 w-full p-3 rounded-[12px] text-sm font-semibold transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-[#EEF0FF] text-[#635BFF] dark:bg-[#1E1D38] dark:text-[#9A94FF]'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 text-zinc-400" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      </div>
+    </nav>
   );
 };

@@ -530,22 +530,22 @@ export const ActionOutcomeModal: React.FC<ActionOutcomeModalProps> = ({
             {selectedOutcome === 'objecao' ? (
               <>
                 <ShieldAlert className="w-4 h-4" />
-                <span>Abrir Biblioteca de Objeções</span>
+                <span>Ver objeções</span>
               </>
             ) : selectedOutcome === 'ganhou' ? (
               <>
                 <Trophy className="w-4 h-4" />
-                <span>Celebrar & Encerrar Prospecção</span>
+                <span>Confirmar ganho</span>
               </>
             ) : selectedOutcome === 'perdeu' ? (
               <>
                 <XCircle className="w-4 h-4" />
-                <span>Registrar Motivo e Finalizar</span>
+                <span>Confirmar perda</span>
               </>
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Concluir & Agendar Próxima Ação</span>
+                <span>Confirmar e agendar</span>
               </>
             )}
           </Button>

@@ -15,6 +15,43 @@ export const LEADION_TOKENS = {
     danger: '#DC2626',
     info: '#2563EB',
   },
+  typography: {
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    display: {
+      mobile: 'text-[28px] leading-tight font-bold tracking-tight',
+      desktop: 'sm:text-[32px] sm:leading-tight sm:font-bold',
+    },
+    h1: {
+      mobile: 'text-[24px] leading-snug font-bold tracking-tight',
+      desktop: 'sm:text-[28px] sm:leading-snug sm:font-bold',
+    },
+    h2: {
+      mobile: 'text-[20px] leading-snug font-semibold tracking-tight',
+      desktop: 'sm:text-[22px] sm:leading-snug sm:font-semibold',
+    },
+    h3: {
+      mobile: 'text-[18px] leading-snug font-semibold tracking-tight',
+      desktop: 'sm:text-[18px]',
+    },
+    bodyLarge: 'text-[16px] leading-relaxed font-normal',
+    body: 'text-[14px] leading-normal font-normal',
+    bodyMedium: 'text-[14px] leading-normal font-medium',
+    caption: 'text-[12px] leading-normal font-normal',
+    label: 'text-[12px] leading-tight font-medium',
+    button: 'text-[14px] leading-none font-semibold',
+  },
+  numeric: {
+    small: 'text-[14px] font-semibold tabular-nums tracking-tight',
+    medium: 'text-[18px] sm:text-[20px] font-semibold tabular-nums tracking-tight',
+    large: 'text-[24px] sm:text-[28px] font-bold tabular-nums tracking-tight',
+    hero: 'text-[32px] sm:text-[40px] font-bold tabular-nums tracking-tight',
+  },
+  sizing: {
+    buttonMinHeightMobile: 'min-h-[44px]',
+    buttonPreferredHeightMobile: 'h-12',
+    inputMinHeightMobile: 'min-h-[48px]',
+    touchTargetMin: 'min-w-[44px] min-h-[44px]',
+  },
   spacing: [4, 8, 12, 16, 20, 24, 32, 40, 48, 64],
   radius: {
     inputs: '11px',

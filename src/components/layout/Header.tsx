@@ -87,7 +87,7 @@ export const Header: React.FC = () => {
   const navInfo = getNavTitle();
 
   return (
-    <header className="sticky top-0 z-20 bg-white/90 dark:bg-[#111319]/90 backdrop-blur-md border-b border-[#E6E8EC] dark:border-[#232836] px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+    <header className="hidden md:flex sticky top-0 z-20 bg-white/90 dark:bg-[#111319]/90 backdrop-blur-md border-b border-[#E6E8EC] dark:border-[#232836] px-4 sm:px-8 py-3.5 items-center justify-between gap-4">
       {/* Title / Context */}
       <div className="min-w-0">
         <div className="flex items-center gap-2">
@@ -106,16 +106,16 @@ export const Header: React.FC = () => {
       </div>
 
       {/* Global Search & Actions */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Search */}
-        <div className="relative w-36 sm:w-64">
+        <div className="relative hidden sm:block w-40 md:w-64">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Buscar lead ou empresa..."
+            placeholder="Buscar..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-[#E6E8EC] dark:border-[#232836] rounded-[11px] py-1.5 pl-8 pr-3 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF] focus:ring-2 focus:ring-[#635BFF]/20"
+            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-[#E6E8EC] dark:border-[#232836] rounded-[11px] min-h-[38px] py-1.5 pl-8 pr-3 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF] focus:ring-2 focus:ring-[#635BFF]/20"
           />
         </div>
 
@@ -149,8 +149,9 @@ export const Header: React.FC = () => {
               setIsNewCompanyModalOpen(true);
             }}
             className="shadow-xs"
+            aria-label="Adicionar empresa"
           >
-            <span className="hidden sm:inline">Nova Empresa</span>
+            <span className="hidden sm:inline">Adicionar empresa</span>
             <span className="sm:hidden">Empresa</span>
           </Button>
         ) : (
@@ -160,8 +161,9 @@ export const Header: React.FC = () => {
             icon={<Plus className="w-4 h-4" />}
             onClick={() => setIsNewLeadModalOpen(true)}
             className="shadow-xs"
+            aria-label="Nova prospecção"
           >
-            <span className="hidden sm:inline">Nova Prospecção</span>
+            <span className="hidden sm:inline">Nova prospecção</span>
             <span className="sm:hidden">Novo</span>
           </Button>
         )}
@@ -170,7 +172,7 @@ export const Header: React.FC = () => {
         <button
           onClick={toggleTheme}
           aria-label="Alternar tema claro/escuro"
-          className="p-2 rounded-[10px] border border-[#E6E8EC] dark:border-[#232836] bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="min-w-[40px] min-h-[40px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center p-2 rounded-[10px] border border-[#E6E8EC] dark:border-[#232836] bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
         >
           {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-zinc-600" />}
         </button>

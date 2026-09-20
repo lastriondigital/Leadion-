@@ -107,7 +107,7 @@ export const NewLeadModal: React.FC = () => {
             onClick={handleSubmit}
             disabled={!name.trim() || !company.trim()}
           >
-            Adicionar à Fila de Hoje
+            Adicionar à fila
           </Button>
         </>
       }

@@ -223,7 +223,7 @@ export const TopNextActionHero: React.FC<TopNextActionHeroProps> = ({
                     Urgência operacional agora
                   </div>
                 </div>
-                <div className="text-3xl font-black text-[#635BFF] tracking-tight">
+                <div className="text-3xl font-black text-[#635BFF] tracking-tight tabular-nums">
                   {priorityScore}
                 </div>
               </div>
@@ -237,7 +237,7 @@ export const TopNextActionHero: React.FC<TopNextActionHeroProps> = ({
                 <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">
                   Score Cliente
                 </div>
-                <div className="text-xl font-extrabold text-zinc-900 mt-0.5">
+                <div className="text-xl font-extrabold text-zinc-900 mt-0.5 tabular-nums">
                   {clientScore}
                   <span className="text-xs font-normal text-zinc-400">/100</span>
                 </div>
@@ -251,7 +251,7 @@ export const TopNextActionHero: React.FC<TopNextActionHeroProps> = ({
                 <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">
                   Score Serviço
                 </div>
-                <div className="text-xl font-extrabold text-zinc-900 mt-0.5">
+                <div className="text-xl font-extrabold text-zinc-900 mt-0.5 tabular-nums">
                   {serviceScore}
                   <span className="text-xs font-normal text-zinc-400">/100</span>
                 </div>
@@ -266,16 +266,16 @@ export const TopNextActionHero: React.FC<TopNextActionHeroProps> = ({
           {/* BOTÕES DE EXECUÇÃO */}
           <div className="space-y-2 pt-2 border-t border-zinc-200">
             
-            {/* BOTÃO PRINCIPAL SOLICITADO: [ABRIR WHATSAPP] */}
+            {/* BOTÃO PRINCIPAL SOLICITADO: [Abrir WhatsApp] */}
             {topAction.channel === 'whatsapp' ? (
               <button
                 type="button"
                 id="hero-btn-abrir-whatsapp"
                 onClick={handleOpenWhatsApp}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm min-h-[48px] py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Send className="w-4 h-4" />
-                <span>ABRIR WHATSAPP</span>
+                <Send className="w-4 h-4 shrink-0" />
+                <span>Abrir WhatsApp</span>
               </button>
             ) : topAction.channel === 'phone' ? (
               <button
@@ -284,52 +284,52 @@ export const TopNextActionHero: React.FC<TopNextActionHeroProps> = ({
                 onClick={() => {
                   if (topAction.phone) window.location.href = `tel:${topAction.phone}`;
                 }}
-                className="w-full bg-[#635BFF] hover:bg-[#5248E5] text-white font-bold text-sm py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#635BFF] hover:bg-[#5248E5] text-white font-semibold text-sm min-h-[48px] py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Phone className="w-4 h-4" />
-                <span>LIGAR PARA CONTATO</span>
+                <Phone className="w-4 h-4 shrink-0" />
+                <span>Ligar</span>
               </button>
             ) : (
               <button
                 type="button"
                 id="hero-btn-executar"
                 onClick={() => onOpenCompanyDetail(topAction.companyId)}
-                className="w-full bg-[#635BFF] hover:bg-[#5248E5] text-white font-bold text-sm py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#635BFF] hover:bg-[#5248E5] text-white font-semibold text-sm min-h-[48px] py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <ArrowRight className="w-4 h-4" />
-                <span>EXECUTAR {topAction.channel.toUpperCase()}</span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+                <span>Executar</span>
               </button>
             )}
 
-            {/* BOTÃO DE CONCLUSÃO INTELIGENTE: [CONCLUIR AÇÃO] */}
+            {/* BOTÃO DE CONCLUSÃO: [Concluir ação] */}
             <button
               type="button"
               id="hero-btn-concluir-acao"
               onClick={() => onOpenOutcomeModal(topAction)}
-              className="w-full bg-zinc-900 hover:bg-black text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full bg-zinc-900 hover:bg-black text-white font-semibold text-xs sm:text-sm min-h-[44px] py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>CONCLUIR & CALCULAR PRÓXIMA AÇÃO</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Concluir ação</span>
             </button>
 
             {/* BOTÕES SECUNDÁRIOS: OBJEÇÃO & FOLLOW-UP */}
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
               <button
                 type="button"
                 onClick={() => onOpenObjectionModal(topAction)}
-                className="bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 font-semibold text-[11px] py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                className="bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 font-semibold text-xs min-h-[44px] py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <ShieldAlert className="w-3 h-3 text-amber-500" />
-                <span>[OBJEÇÃO]</span>
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Objeção</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onOpenOutcomeModal(topAction)}
-                className="bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 font-semibold text-[11px] py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                className="bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 font-semibold text-xs min-h-[44px] py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Clock className="w-3 h-3 text-[#635BFF]" />
-                <span>[FOLLOW-UP]</span>
+                <Clock className="w-3.5 h-3.5 text-[#635BFF] shrink-0" />
+                <span>Follow-up</span>
               </button>
             </div>
 

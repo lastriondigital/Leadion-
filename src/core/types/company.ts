@@ -123,6 +123,8 @@ export interface Company {
   size: string;
   leadSource: string;
   commercialNotes?: string;
+  dealValue?: string;
+  closedAt?: string;
 
   // SISTEMA & FUNIL
   score: number;

@@ -2554,7 +2554,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
   // Transição explícita entre etapas com registro cronológico
   const transitionCompanyStage = useCallback((payload: StageTransitionPayload) => {
-    const { companyId, targetStageId, targetFunnelId, responsibleName, notes } = payload;
+    const { companyId, targetStageId, targetFunnelId, responsibleName, notes, dealValue } = payload;
 
     setCompanies((prev) => {
       const company = prev.find((c) => c.id === companyId);
@@ -2573,12 +2573,20 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const operator = responsibleName || userName || 'Manuel Domingos';
 
+      const isWon = targetStage.id === 'cliente' || 
+        targetStage.name.toLowerCase().includes('cliente') || 
+        targetStage.name.toLowerCase().includes('ganho');
+
+      const effectiveDealValue = dealValue || (isWon ? (company.dealValue || company.estimatedRevenue || 'R$ 6.800') : company.dealValue);
+
       const transitionEvent: CompanyTimelineEvent = {
         id: `evt-trans-${Date.now()}`,
         timestamp: `${dateStr} ${timeStr}`,
-        type: 'alteracao_etapa',
-        title: `Transição para "${targetStage.name}"`,
-        detail: `Etapa anterior: "${previousStageName}" → Nova etapa: "${targetStage.name}" | Responsável: ${operator}${notes ? ` | Nota: ${notes}` : ''}`,
+        type: isWon ? 'alteracao_etapa' : 'alteracao_etapa',
+        title: isWon ? `🏆 Negócio Ganho - ${targetStage.name}` : `Transição para "${targetStage.name}"`,
+        detail: isWon 
+          ? `Negócio fechado e convertido! Valor: ${effectiveDealValue || 'Definido'} | Responsável: ${operator}${notes ? ` | Nota: ${notes}` : ''}`
+          : `Etapa anterior: "${previousStageName}" → Nova etapa: "${targetStage.name}" | Responsável: ${operator}${notes ? ` | Nota: ${notes}` : ''}`,
         author: operator,
         metadata: {
           funnelId: funnel.id,
@@ -2591,6 +2599,8 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
           time: timeStr,
           responsible: operator,
           notes: notes || null,
+          dealValue: effectiveDealValue,
+          isWon,
         },
       };
 
@@ -2601,6 +2611,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
             funnelId: funnel.id,
             funnelStageId: targetStage.id,
             funnelStageName: targetStage.name,
+            funnelStage: isWon ? 'cliente' : (targetStage.id as any),
+            dealValue: effectiveDealValue,
+            closedAt: isWon ? `${dateStr} ${timeStr}` : c.closedAt,
             timeline: [transitionEvent, ...(c.timeline || [])],
             updatedAt: `${dateStr} ${timeStr}`,
           };
@@ -2612,11 +2625,29 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('leadion-companies', JSON.stringify(updatedCompanies));
       }
 
-      showToast({
-        type: 'success',
-        title: 'Transição Realizada',
-        message: `${company.name} avançou para "${targetStage.name}". Histórico registrado.`,
+      enqueueOfflineMutation('company', 'UPDATE', companyId, {
+        funnelId: funnel.id,
+        funnelStageId: targetStage.id,
+        funnelStageName: targetStage.name,
+        funnelStage: isWon ? 'cliente' : targetStage.id,
+        dealValue: effectiveDealValue,
+        notes,
       });
+      setPendingMutations(loadPendingQueue());
+
+      if (isWon) {
+        showToast({
+          type: 'success',
+          title: '🏆 Negócio Ganho!',
+          message: `${company.name} convertido com sucesso! Valor de ${effectiveDealValue} registrado nas estatísticas.`,
+        });
+      } else {
+        showToast({
+          type: 'success',
+          title: 'Transição Realizada',
+          message: `${company.name} avançou para "${targetStage.name}". Histórico registrado.`,
+        });
+      }
 
       return updatedCompanies;
     });

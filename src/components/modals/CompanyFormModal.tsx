@@ -456,7 +456,7 @@ export const CompanyFormModal: React.FC = () => {
               disabled={!name.trim()}
               icon={<Check className="w-3.5 h-3.5" />}
             >
-              {isEditing ? 'Salvar Alterações' : 'Cadastrar Empresa'}
+              {isEditing ? 'Salvar' : 'Adicionar empresa'}
             </Button>
           </div>
         </div>

@@ -6,6 +6,7 @@ interface ScoreProps {
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   className?: string;
+  onClick?: () => void;
 }
 
 export const Score: React.FC<ScoreProps> = ({
@@ -13,6 +14,7 @@ export const Score: React.FC<ScoreProps> = ({
   size = 'md',
   showLabel = true,
   className = '',
+  onClick,
 }) => {
   const getScoreTier = (val: number) => {
     if (val >= 90) return { label: 'Alta Propensão', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200/80 dark:border-emerald-800/60', dot: 'bg-emerald-500' };
@@ -22,14 +24,24 @@ export const Score: React.FC<ScoreProps> = ({
   };
 
   const tier = getScoreTier(score);
+  const interactiveClasses = onClick ? 'cursor-pointer hover:opacity-90 active:scale-[0.98] transition-transform' : '';
 
   if (size === 'sm') {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[7px] border ${tier.bg} ${className}`}>
-        <Zap className={`w-3 h-3 ${tier.color} fill-current`} />
+      <div 
+        onClick={onClick}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        title={onClick ? `Score ${score}/100: Toque para entender o cálculo` : `Score ${score}/100`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] border ${tier.bg} ${interactiveClasses} ${className}`}
+      >
+        <Zap className={`w-3.5 h-3.5 ${tier.color} fill-current shrink-0`} />
         <span className={`text-xs font-bold ${tier.color} tabular-nums`}>{score}</span>
+        <span className="text-[10px] text-zinc-400 font-medium">/100</span>
         {showLabel && (
-          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">Ion Score</span>
+          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium border-l border-zinc-300 dark:border-zinc-700 pl-1.5">
+            Score
+          </span>
         )}
       </div>
     );
@@ -37,16 +49,21 @@ export const Score: React.FC<ScoreProps> = ({
 
   if (size === 'lg') {
     return (
-      <div className={`flex items-center gap-3 p-3 rounded-[12px] border ${tier.bg} ${className}`}>
-        <div className="flex items-center justify-center w-10 h-10 rounded-[10px] bg-white dark:bg-zinc-900 border border-current/10 shadow-xs">
+      <div 
+        onClick={onClick}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        className={`flex items-center gap-3 p-3.5 rounded-[12px] border ${tier.bg} ${interactiveClasses} ${className}`}
+      >
+        <div className="flex items-center justify-center w-11 h-11 rounded-[10px] bg-white dark:bg-zinc-900 border border-current/10 shadow-xs shrink-0">
           <Zap className={`w-5 h-5 ${tier.color} fill-current`} />
         </div>
-        <div>
-          <div className="flex items-baseline gap-1.5">
-            <span className={`text-2xl font-bold tracking-tight ${tier.color} tabular-nums`}>{score}</span>
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-1">
+            <span className={`text-2xl sm:text-3xl font-bold tracking-tight ${tier.color} tabular-nums`}>{score}</span>
             <span className="text-xs text-zinc-400 font-medium">/ 100</span>
           </div>
-          <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+          <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">
             Ion Propensity • {tier.label}
           </div>
         </div>
@@ -56,14 +73,20 @@ export const Score: React.FC<ScoreProps> = ({
 
   // Medium (default)
   return (
-    <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-[8px] border ${tier.bg} ${className}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${tier.dot}`} />
+    <div 
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-[9px] border ${tier.bg} ${interactiveClasses} ${className}`}
+    >
+      <span className={`w-2 h-2 rounded-full ${tier.dot} shrink-0`} />
       <div className="flex items-center gap-1">
-        <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Ion Score:</span>
-        <span className={`text-xs font-bold ${tier.color} tabular-nums`}>{score}</span>
+        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Score:</span>
+        <span className={`text-sm font-bold ${tier.color} tabular-nums`}>{score}</span>
+        <span className="text-[11px] text-zinc-400 font-medium">/100</span>
       </div>
       {showLabel && (
-        <span className="text-[11px] text-zinc-600 dark:text-zinc-300 font-medium border-l border-zinc-300 dark:border-zinc-700 pl-1.5">
+        <span className="text-xs text-zinc-600 dark:text-zinc-300 font-medium border-l border-zinc-300 dark:border-zinc-700 pl-2">
           {tier.label}
         </span>
       )}
