@@ -52,8 +52,6 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   onClose,
   defaultTab = 'backup',
 }) => {
-  if (!isOpen) return null;
-
   const {
     companies,
     leads,
@@ -97,10 +95,12 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
 
   // Carrega backups da nuvem quando a aba de backup é acessada
   React.useEffect(() => {
-    if (activeTab === 'backup') {
+    if (isOpen && activeTab === 'backup') {
       loadCloudBackupsList();
     }
-  }, [activeTab]);
+  }, [isOpen, activeTab]);
+
+  if (!isOpen) return null;
 
   const loadCloudBackupsList = async () => {
     setIsLoadingCloud(true);

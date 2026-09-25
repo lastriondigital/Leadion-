@@ -60,6 +60,48 @@ import {
   LeadionBackupPayload, 
   saveLocalBackupSnapshot 
 } from '../core/backup/backupEngine';
+import { 
+  getCurrentUser, 
+  getCurrentSession, 
+  signInWithEmail, 
+  signUpWithEmail, 
+  signOutUser, 
+  subscribeToAuthChanges,
+  fetchCompaniesFromSupabase, 
+  fetchCompanyByIdFromSupabase,
+  createCompanyInSupabase,
+  upsertCompanyToSupabase, 
+  deleteCompanyFromSupabase,
+  fetchActionsFromSupabase, 
+  upsertActionToSupabase, 
+  deleteActionFromSupabase,
+  fetchScriptsFromSupabase, 
+  upsertScriptToSupabase, 
+  deleteScriptFromSupabase,
+  fetchFunnelsFromSupabase, 
+  upsertFunnelToSupabase, 
+  deleteFunnelFromSupabase,
+  fetchServicesFromSupabase, 
+  upsertServiceToSupabase, 
+  deleteServiceFromSupabase,
+  fetchObjectionsFromSupabase, 
+  upsertObjectionToSupabase, 
+  deleteObjectionFromSupabase,
+  fetchQualificationQuestionsFromSupabase, 
+  saveQualificationQuestionsToSupabase,
+  fetchQualificationAnswersFromSupabase,
+  saveQualificationAnswersToSupabase,
+  processOfflineMutations, 
+  pullAllRemoteData 
+} from '../services';
+import type { User, Session } from '@supabase/supabase-js';
+import { 
+  isDemoCompany, 
+  isDemoAction, 
+  isDemoLead, 
+  cleanLocalStorageDemoData, 
+  purgeDemoDataFromSupabase 
+} from '../core/utils/demoCleaners';
 
 export type ProspectFilter = 'all' | 'due_today' | 'overdue' | 'high_score' | 'first_touch';
 
@@ -106,7 +148,7 @@ interface LeadionContextType {
   setIsNewCompanyModalOpen: (open: boolean) => void;
   editingCompany: Company | null;
   setEditingCompany: (company: Company | null) => void;
-  addCompany: (companyData: Partial<Company>) => { success: boolean; error?: string; company?: Company };
+  addCompany: (companyData: Partial<Company>) => Promise<{ success: boolean; error?: string; company?: Company }>;
   updateCompany: (id: string, updates: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
   archiveCompany: (id: string) => void;
@@ -326,6 +368,17 @@ interface LeadionContextType {
   restoreEntireState: (payload: LeadionBackupPayload, mode: 'merge' | 'replace') => void;
   importCompaniesList: (imported: Partial<Company>[], mode: 'merge' | 'create_only') => void;
   simulateRemoteConflict: () => void;
+
+  // Supabase Auth & Session
+  currentUser: User | null;
+  currentSession: Session | null;
+  authLoading: boolean;
+  signIn: (email: string, pass: string) => Promise<{ success: boolean; user?: User | null; error?: string }>;
+  signUp: (email: string, pass: string, name?: string) => Promise<{ success: boolean; user?: User | null; error?: string; requiresEmailConfirmation?: boolean }>;
+  signOut: () => Promise<void>;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  openAuthModal: () => void;
 }
 
 const LeadionContext = createContext<LeadionContextType | undefined>(undefined);
@@ -333,6 +386,65 @@ const LeadionContext = createContext<LeadionContextType | undefined>(undefined);
 export function LeadionProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const [activeNav, setActiveNav] = useState<DesktopNavId>('today');
+
+  // User Profile
+  const [userName, setUserNameState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('leadion-username') || 'Manuel';
+    }
+    return 'Manuel';
+  });
+
+  const setUserName = useCallback((name: string) => {
+    setUserNameState(name);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-username', name);
+    }
+  }, []);
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return `Bom dia, ${userName}`;
+    if (hour < 18) return `Boa tarde, ${userName}`;
+    return `Boa noite, ${userName}`;
+  }, [userName]);
+
+  // Supabase Auth State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+
+  const openAuthModal = useCallback(() => {
+    setIsAuthModalOpen(true);
+  }, []);
+
+  const signIn = useCallback(async (email: string, pass: string) => {
+    const res = await signInWithEmail(email, pass);
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      if (res.user.user_metadata?.full_name) {
+        setUserName(res.user.user_metadata.full_name);
+      }
+    }
+    return res;
+  }, [setUserName]);
+
+  const signUp = useCallback(async (email: string, pass: string, name?: string) => {
+    const res = await signUpWithEmail(email, pass, name);
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      if (name) setUserName(name);
+    }
+    return res;
+  }, [setUserName]);
+
+  const signOut = useCallback(async () => {
+    await signOutUser();
+    setCurrentUser(null);
+    setCurrentSession(null);
+  }, []);
+
   const [leads, setLeads] = useState<Lead[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('leadion-leads');
@@ -344,12 +456,11 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    return INITIAL_LEADS;
+    return INITIAL_LEADS.filter((l) => !isDemoLead(l));
   });
 
-  // Helper to ensure company has explicit funnel attributes
+  // Helper to ensure company with existing funnel has explicit stage attributes
   const ensureCompanyFunnels = (rawCompanies: Company[]): Company[] => {
-    const defaultFunnelId = 'funnel-b2b-default';
     const stageMapping: Record<string, { id: string; name: string }> = {
       prospeccao: { id: 'stg-primeira-abordagem', name: 'Primeira abordagem' },
       contato_feito: { id: 'stg-conversando', name: 'Conversando' },
@@ -362,10 +473,13 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
 
     return rawCompanies.map((c) => {
+      // Regra fundamental: Empresa recém-registrada NÃO deve receber funil automaticamente!
+      if (!c.funnelId) {
+        return c;
+      }
       const mapped = stageMapping[c.funnelStage] || { id: 'stg-novo', name: 'Novo' };
       return {
         ...c,
-        funnelId: c.funnelId || defaultFunnelId,
         funnelStageId: c.funnelStageId || mapped.id,
         funnelStageName: c.funnelStageName || mapped.name,
       };
@@ -374,20 +488,41 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
   const [companies, setCompanies] = useState<Company[]>(() => {
     if (typeof window !== 'undefined') {
+      cleanLocalStorageDemoData();
       const saved = localStorage.getItem('leadion-companies');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          return ensureCompanyFunnels(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const clean = parsed.filter((c) => !isDemoCompany(c));
+            if (clean.length !== parsed.length) {
+              localStorage.setItem('leadion-companies', JSON.stringify(clean));
+            }
+            return ensureCompanyFunnels(clean);
+          }
         } catch {
-          // fallback to initial
+          // fallback to clean
         }
       }
     }
-    return ensureCompanyFunnels(INITIAL_COMPANIES);
+    return [];
   });
 
-  const [selectedCompany, setSelectedCompanyState] = useState<Company | null>(null);
+  const [selectedCompany, setSelectedCompanyState] = useState<Company | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedSelectedId = localStorage.getItem('leadion-selected-company-id');
+      const saved = localStorage.getItem('leadion-companies');
+      if (savedSelectedId && saved) {
+        try {
+          const parsed: Company[] = JSON.parse(saved);
+          const found = parsed.find((c) => c.id === savedSelectedId && !isDemoCompany(c));
+          if (found) return found;
+          localStorage.removeItem('leadion-selected-company-id');
+        } catch {}
+      }
+    }
+    return null;
+  });
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState<boolean>(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
 
@@ -472,6 +607,10 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(updated));
       }
+      // Persistência assíncrona no Supabase
+      saveQualificationAnswersToSupabase(updated, currentUser?.id).catch((err) => {
+        console.warn('Erro ao salvar respostas de qualificação no Supabase:', err);
+      });
       return updated;
     });
     showToast({
@@ -479,7 +618,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Qualificação Salva',
       message: 'Respostas salvas e scores recalculados com sucesso.',
     });
-  }, [showToast]);
+  }, [showToast, currentUser]);
 
   const addQualificationQuestion = useCallback((q: QualificationQuestion) => {
     setQualificationQuestions((prev) => {
@@ -487,6 +626,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(updated));
       }
+      saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch((err) => {
+        console.warn('Erro ao salvar perguntas de qualificação no Supabase:', err);
+      });
       return updated;
     });
     showToast({
@@ -494,7 +636,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Pergunta Criada',
       message: 'Nova pergunta adicionada ao motor de qualificação.',
     });
-  }, [showToast]);
+  }, [showToast, currentUser]);
 
   const updateQualificationQuestion = useCallback((q: QualificationQuestion) => {
     setQualificationQuestions((prev) => {
@@ -502,6 +644,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(updated));
       }
+      saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch((err) => {
+        console.warn('Erro ao atualizar perguntas de qualificação no Supabase:', err);
+      });
       return updated;
     });
     showToast({
@@ -509,7 +654,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Pergunta Atualizada',
       message: 'Critérios e pesos recalculados.',
     });
-  }, [showToast]);
+  }, [showToast, currentUser]);
 
   const deleteQualificationQuestion = useCallback((id: string) => {
     setQualificationQuestions((prev) => {
@@ -517,6 +662,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(updated));
       }
+      saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch((err) => {
+        console.warn('Erro ao remover pergunta de qualificação no Supabase:', err);
+      });
       return updated;
     });
     showToast({
@@ -524,7 +672,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Pergunta Removida',
       message: 'Pergunta excluída do motor de qualificação.',
     });
-  }, [showToast]);
+  }, [showToast, currentUser]);
 
   const getCompanyScoreResult = useCallback((companyId: string): CompanyScoreResult | null => {
     const comp = companies.find((c) => c.id === companyId);
@@ -625,20 +773,51 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [newObj, ...objectionsEntities];
     saveObjectionsEntities(updated);
+
+    // Persistência real no Supabase
+    upsertObjectionToSupabase(newObj, currentUser?.id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('objection', 'CREATE', newObj.id, newObj);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('objection', 'CREATE', newObj.id, newObj);
+        setPendingMutations(loadPendingQueue());
+      });
+
     return newObj;
-  }, [objectionsEntities, saveObjectionsEntities]);
+  }, [objectionsEntities, saveObjectionsEntities, currentUser]);
 
   const updateObjection = useCallback((id: string, updates: Partial<ObjectionEntity>) => {
+    let targetUpdated: ObjectionEntity | null = null;
     const updated = objectionsEntities.map((obj) => {
       if (obj.id !== id) return obj;
-      return {
+      const merged = {
         ...obj,
         ...updates,
         updatedAt: new Date().toISOString(),
       };
+      targetUpdated = merged;
+      return merged;
     });
     saveObjectionsEntities(updated);
-  }, [objectionsEntities, saveObjectionsEntities]);
+
+    if (targetUpdated) {
+      upsertObjectionToSupabase(targetUpdated, currentUser?.id)
+        .then((res) => {
+          if (!res.success) {
+            enqueueOfflineMutation('objection', 'UPDATE', id, updates);
+            setPendingMutations(loadPendingQueue());
+          }
+        })
+        .catch(() => {
+          enqueueOfflineMutation('objection', 'UPDATE', id, updates);
+          setPendingMutations(loadPendingQueue());
+        });
+    }
+  }, [objectionsEntities, saveObjectionsEntities, currentUser]);
 
   const duplicateObjection = useCallback((id: string): ObjectionEntity | null => {
     const target = objectionsEntities.find((o) => o.id === id);
@@ -653,12 +832,31 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [copy, ...objectionsEntities];
     saveObjectionsEntities(updated);
+
+    upsertObjectionToSupabase(copy, currentUser?.id).catch(() => {
+      enqueueOfflineMutation('objection', 'CREATE', copy.id, copy);
+      setPendingMutations(loadPendingQueue());
+    });
+
     return copy;
-  }, [objectionsEntities, saveObjectionsEntities]);
+  }, [objectionsEntities, saveObjectionsEntities, currentUser]);
 
   const deleteObjection = useCallback((id: string): boolean => {
     const updated = objectionsEntities.filter((o) => o.id !== id);
     saveObjectionsEntities(updated);
+
+    deleteObjectionFromSupabase(id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('objection', 'DELETE', id, null);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('objection', 'DELETE', id, null);
+        setPendingMutations(loadPendingQueue());
+      });
+
     return true;
   }, [objectionsEntities, saveObjectionsEntities]);
 
@@ -832,6 +1030,13 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedCompany = useCallback((company: Company | null) => {
     setSelectedCompanyState(company);
+    if (typeof window !== 'undefined') {
+      if (company?.id) {
+        localStorage.setItem('leadion-selected-company-id', company.id);
+      } else {
+        localStorage.removeItem('leadion-selected-company-id');
+      }
+    }
   }, []);
 
   const saveLeads = (newLeads: Lead[]) => {
@@ -846,10 +1051,20 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-companies', JSON.stringify(newCompanies));
     }
-    // Sync selectedCompany if it was updated
+    // Sync selectedCompany if it was updated or if selectedCompanyId is present
     if (selectedCompany) {
       const fresh = newCompanies.find((c) => c.id === selectedCompany.id);
-      if (fresh) setSelectedCompanyState(fresh);
+      if (fresh) {
+        setSelectedCompanyState(fresh);
+      }
+    } else if (typeof window !== 'undefined') {
+      const savedSelectedId = localStorage.getItem('leadion-selected-company-id');
+      if (savedSelectedId) {
+        const found = newCompanies.find((c) => c.id === savedSelectedId);
+        if (found) {
+          setSelectedCompanyState(found);
+        }
+      }
     }
   };
 
@@ -905,11 +1120,11 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   }, [companies]);
 
   // Adicionar Empresa
-  const addCompany = useCallback((companyData: Partial<Company>) => {
+  const addCompany = useCallback(async (companyData: Partial<Company>): Promise<{ success: boolean; error?: string; company?: Company }> => {
     const name = companyData.name?.trim();
     if (!name) {
       showToast({ type: 'warning', title: 'Atenção', message: 'O nome da empresa é obrigatório.' });
-      return { success: false, error: 'Nome obrigatório' };
+      return { success: false, error: 'O nome da empresa é obrigatório.' };
     }
 
     const dupCheck = checkCompanyDuplicate(name, companyData.website, companyData.email, companyData.phone);
@@ -924,90 +1139,115 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     const now = new Date();
     const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
     const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `comp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    const city = companyData.city?.trim() || '';
+    const state = companyData.state?.trim() || '';
+    const country = companyData.country?.trim() || '';
+    const location = companyData.location?.trim() || (
+      [city, state].filter(Boolean).join(', ') + (country ? (city || state ? ` - ${country}` : country) : '')
+    );
 
     const newCompany: Company = {
-      id: `comp-${Date.now()}`,
+      id: companyData.id || generatedId,
       name: name,
-      niche: companyData.niche || 'Geral B2B',
-      country: companyData.country || 'Brasil',
-      city: companyData.city || 'São Paulo',
-      state: companyData.state || 'SP',
-      location: companyData.location || `${companyData.city || 'São Paulo'}, ${companyData.state || 'SP'} - ${companyData.country || 'Brasil'}`,
-      address: companyData.address || '',
-      website: companyData.website || '',
-      phone: companyData.phone || '',
-      whatsapp: companyData.whatsapp || companyData.phone || '',
-      email: companyData.email || '',
+      niche: companyData.niche?.trim() || companyData.segment?.trim() || '',
+      country,
+      city,
+      state,
+      location,
+      address: companyData.address?.trim() || '',
+      website: companyData.website?.trim() || '',
+      phone: companyData.phone?.trim() || '',
+      whatsapp: companyData.whatsapp?.trim() || companyData.phone?.trim() || '',
+      email: companyData.email?.trim() || '',
       additionalContacts: companyData.additionalContacts || [],
       socials: companyData.socials || {},
-      responsibles: companyData.responsibles && companyData.responsibles.length > 0 ? companyData.responsibles : [
-        {
-          id: `resp-${Date.now()}`,
-          name: 'Decisor Principal',
-          role: 'Diretor / Sócio',
-          phone: companyData.phone || '',
-          whatsapp: companyData.whatsapp || companyData.phone || '',
-          email: companyData.email || '',
-          notes: '',
-          isPrimary: true,
-        }
-      ],
-      unitsCount: companyData.unitsCount || 1,
+      responsibles: companyData.responsibles || [],
+      unitsCount: Number(companyData.unitsCount) || 1,
       businessType: companyData.businessType || 'B2B',
-      size: companyData.size || '11-50 colaboradores',
+      size: companyData.size || companyData.employeesRange || '11-50 colaboradores',
       leadSource: companyData.leadSource || 'Outbound Ativo',
-      commercialNotes: companyData.commercialNotes || '',
-      score: companyData.score || 85,
+      commercialNotes: companyData.commercialNotes?.trim() || '',
+      dealValue: companyData.dealValue,
+      closedAt: companyData.closedAt,
+      score: companyData.score !== undefined ? companyData.score : null,
+      qualificationStatus: companyData.qualificationStatus || 'NOT_STARTED',
       funnelStage: companyData.funnelStage || 'prospeccao',
+      funnelId: companyData.funnelId,
+      funnelStageId: companyData.funnelStageId,
+      funnelStageName: companyData.funnelStageName,
+      primaryServiceId: companyData.primaryServiceId,
       status: 'active',
-      associatedServices: companyData.associatedServices || (services[0] ? [services[0].id] : []),
-      nextAction: companyData.nextAction || {
-        actionType: 'send_whatsapp',
-        label: 'Primeiro toque de prospecção',
-        dueDate: 'Hoje',
-        channel: 'whatsapp',
-      },
+      associatedServices: companyData.associatedServices || [],
+      companyServices: companyData.companyServices || [],
+      positivePoints: companyData.positivePoints || [],
+      negativePoints: companyData.negativePoints || [],
+      commercialContext: companyData.commercialContext || {},
+      nextAction: companyData.nextAction,
       timeline: [
         {
-          id: `evt-${Date.now()}`,
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `evt-${Date.now()}`,
           timestamp: `${formattedDate} ${formattedTime}`,
           type: 'empresa_criada',
-          title: 'Empresa cadastrada no LEADION',
-          detail: `Cadastrada com foco em ${companyData.niche || 'prospecção B2B'}.`,
-          author: 'Você (Operador)',
+          title: 'Empresa registrada no LEADION',
+          detail: country ? `Registrada com foco comercial em ${city ? `${city} · ` : ''}${country}.` : 'Registrada no sistema.',
+          author: userName || 'Você (Operador)',
         },
         ...(companyData.associatedServices && companyData.associatedServices.length > 0 ? [{
-          id: `evt-${Date.now() + 1}`,
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `evt-${Date.now() + 1}`,
           timestamp: `${formattedDate} ${formattedTime}`,
           type: 'servico_selecionado' as const,
           title: 'Serviço de alto valor associado',
           detail: `Associada a ${companyData.associatedServices.length} serviço(s) comercial(is).`,
-          author: 'Você (Operador)',
+          author: userName || 'Você (Operador)',
         }] : []),
       ],
       activities: companyData.activities || [],
       createdAt: formattedDate,
       updatedAt: formattedDate,
       // Backwards compatibility
-      segment: companyData.niche || 'Geral B2B',
+      segment: companyData.niche?.trim() || companyData.segment?.trim() || '',
       domain: companyData.website ? companyData.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0] : '',
-      icpScore: companyData.score || 85,
-      employeesRange: companyData.size || '11-50 colaboradores',
-      recentTriggers: companyData.commercialNotes ? [companyData.commercialNotes] : ['Empresa em fase de prospecção'],
-      activeLeadsCount: companyData.responsibles?.length || 1,
+      icpScore: companyData.score !== undefined && companyData.score !== null ? companyData.score : undefined,
+      employeesRange: companyData.size || companyData.employeesRange || '11-50 colaboradores',
+      recentTriggers: companyData.commercialNotes ? [companyData.commercialNotes] : [],
+      activeLeadsCount: companyData.responsibles?.length || 0,
     };
 
     const updated = [newCompany, ...companies];
     saveCompanies(updated);
 
+    // Persistência real no Supabase
+    let savedCompany = newCompany;
+    try {
+      const res = await createCompanyInSupabase(newCompany, currentUser?.id);
+      if (res.success && res.company) {
+        savedCompany = res.company;
+        setCompanies((prev) => prev.map((c) => (c.id === newCompany.id ? savedCompany : c)));
+        if (typeof window !== 'undefined') {
+          const freshList = updated.map((c) => (c.id === newCompany.id ? savedCompany : c));
+          localStorage.setItem('leadion-companies', JSON.stringify(freshList));
+        }
+        setSyncStatus('synced');
+        setLastSyncTimestamp(new Date().toISOString());
+      } else {
+        enqueueOfflineMutation('company', 'CREATE', newCompany.id, newCompany);
+        setPendingMutations(loadPendingQueue());
+      }
+    } catch {
+      enqueueOfflineMutation('company', 'CREATE', newCompany.id, newCompany);
+      setPendingMutations(loadPendingQueue());
+    }
+
     showToast({
       type: 'success',
       title: 'Empresa Cadastrada',
-      message: `${newCompany.name} foi adicionada ao pipeline com sucesso.`,
+      message: `${savedCompany.name} foi adicionada ao pipeline com sucesso.`,
     });
 
-    return { success: true, company: newCompany };
-  }, [companies, services, checkCompanyDuplicate, showToast]);
+    return { success: true, company: savedCompany };
+  }, [companies, services, checkCompanyDuplicate, showToast, currentUser, userName, saveCompanies]);
 
   // Atualizar Empresa
   const updateCompany = useCallback((id: string, updates: Partial<Company>) => {
@@ -1055,6 +1295,22 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
           icpScore: updates.score !== undefined ? updates.score : c.score,
         };
 
+        // Persistência real no Supabase
+        upsertCompanyToSupabase(merged, currentUser?.id)
+          .then((res) => {
+            if (!res.success) {
+              enqueueOfflineMutation('company', 'UPDATE', id, updates);
+              setPendingMutations(loadPendingQueue());
+            } else {
+              setSyncStatus('synced');
+              setLastSyncTimestamp(new Date().toISOString());
+            }
+          })
+          .catch(() => {
+            enqueueOfflineMutation('company', 'UPDATE', id, updates);
+            setPendingMutations(loadPendingQueue());
+          });
+
         return merged;
       });
 
@@ -1075,7 +1331,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Empresa Atualizada',
       message: 'As alterações foram salvas com sucesso.',
     });
-  }, [selectedCompany, showToast]);
+  }, [selectedCompany, showToast, currentUser]);
 
   // Excluir Empresa
   const deleteCompany = useCallback((id: string) => {
@@ -1084,15 +1340,31 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     saveCompanies(updated);
 
     if (selectedCompany?.id === id) {
-      setSelectedCompanyState(null);
+      setSelectedCompany(null);
     }
+
+    // Persistência real no Supabase
+    deleteCompanyFromSupabase(id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('company', 'DELETE', id, null);
+          setPendingMutations(loadPendingQueue());
+        } else {
+          setSyncStatus('synced');
+          setLastSyncTimestamp(new Date().toISOString());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('company', 'DELETE', id, null);
+        setPendingMutations(loadPendingQueue());
+      });
 
     showToast({
       type: 'info',
       title: 'Empresa Excluída',
       message: `${target?.name || 'A empresa'} foi removida do sistema.`,
     });
-  }, [companies, selectedCompany, showToast]);
+  }, [companies, selectedCompany, showToast, saveCompanies]);
 
   // Arquivar Empresa
   const archiveCompany = useCallback((id: string) => {
@@ -1494,28 +1766,6 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     });
   }, [showToast]);
 
-  // User Profile
-  const [userName, setUserNameState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('leadion-username') || 'Manuel';
-    }
-    return 'Manuel';
-  });
-
-  const setUserName = useCallback((name: string) => {
-    setUserNameState(name);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('leadion-username', name);
-    }
-  }, []);
-
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return `Bom dia, ${userName}`;
-    if (hour < 18) return `Boa tarde, ${userName}`;
-    return `Boa noite, ${userName}`;
-  }, [userName]);
-
   // Priority Weights
   const [priorityWeights, setPriorityWeightsState] = useState<PriorityWeights>(() => {
     return loadSavedPriorityWeights();
@@ -1537,13 +1787,20 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem('leadion-prospect-actions');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const clean = parsed.filter((a) => !isDemoAction(a));
+            if (clean.length !== parsed.length) {
+              localStorage.setItem('leadion-prospect-actions', JSON.stringify(clean));
+            }
+            return clean;
+          }
         } catch {
           // fallback
         }
       }
     }
-    return INITIAL_ACTIONS;
+    return INITIAL_ACTIONS.filter((a) => !isDemoAction(a));
   });
 
   const saveActions = useCallback((newActions: ProspectAction[]) => {
@@ -1673,6 +1930,19 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
     // Save action
     saveActions([newAction, ...actions.filter((a) => a.id !== newActionId)]);
+
+    // Persistência real no Supabase
+    upsertActionToSupabase(newAction, currentUser?.id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('action', 'CREATE', newAction.id, newAction);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('action', 'CREATE', newAction.id, newAction);
+        setPendingMutations(loadPendingQueue());
+      });
 
     // Update associated company
     if (targetComp) {
@@ -2125,22 +2395,53 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [newScript, ...scriptsEntities];
     saveScriptsEntities(updated);
+
+    // Persistência real no Supabase
+    upsertScriptToSupabase(newScript, currentUser?.id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('script', 'CREATE', newScript.id, newScript);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('script', 'CREATE', newScript.id, newScript);
+        setPendingMutations(loadPendingQueue());
+      });
+
     return newScript;
-  }, [scriptsEntities, saveScriptsEntities]);
+  }, [scriptsEntities, saveScriptsEntities, currentUser]);
 
   const updateScript = useCallback((id: string, updates: Partial<ScriptEntity>) => {
+    let targetUpdated: ScriptEntity | null = null;
     const updated = scriptsEntities.map((s) => {
       if (s.id === id) {
-        return {
+        const merged = {
           ...s,
           ...updates,
           updatedAt: new Date().toISOString(),
         };
+        targetUpdated = merged;
+        return merged;
       }
       return s;
     });
     saveScriptsEntities(updated);
-  }, [scriptsEntities, saveScriptsEntities]);
+
+    if (targetUpdated) {
+      upsertScriptToSupabase(targetUpdated, currentUser?.id)
+        .then((res) => {
+          if (!res.success) {
+            enqueueOfflineMutation('script', 'UPDATE', id, updates);
+            setPendingMutations(loadPendingQueue());
+          }
+        })
+        .catch(() => {
+          enqueueOfflineMutation('script', 'UPDATE', id, updates);
+          setPendingMutations(loadPendingQueue());
+        });
+    }
+  }, [scriptsEntities, saveScriptsEntities, currentUser]);
 
   const duplicateScript = useCallback((id: string): ScriptEntity | null => {
     const original = scriptsEntities.find((s) => s.id === id);
@@ -2155,17 +2456,36 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [copy, ...scriptsEntities];
     saveScriptsEntities(updated);
+
+    upsertScriptToSupabase(copy, currentUser?.id).catch(() => {
+      enqueueOfflineMutation('script', 'CREATE', copy.id, copy);
+      setPendingMutations(loadPendingQueue());
+    });
+
     showToast({
       type: 'info',
       title: 'Script Duplicado',
       message: `Uma cópia de "${original.name}" foi adicionada.`,
     });
     return copy;
-  }, [scriptsEntities, saveScriptsEntities, showToast]);
+  }, [scriptsEntities, saveScriptsEntities, showToast, currentUser]);
 
   const deleteScript = useCallback((id: string): boolean => {
     const filtered = scriptsEntities.filter((s) => s.id !== id);
     saveScriptsEntities(filtered);
+
+    deleteScriptFromSupabase(id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('script', 'DELETE', id, null);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('script', 'DELETE', id, null);
+        setPendingMutations(loadPendingQueue());
+      });
+
     return true;
   }, [scriptsEntities, saveScriptsEntities]);
 
@@ -2217,36 +2537,68 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
 
     saveServices([newService, ...services]);
+
+    // Persistência real no Supabase
+    upsertServiceToSupabase(newService, currentUser?.id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('service', 'CREATE', newService.id, newService);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('service', 'CREATE', newService.id, newService);
+        setPendingMutations(loadPendingQueue());
+      });
+
     showToast({
       type: 'success',
       title: 'Serviço Criado',
       message: `${newService.name} agora está disponível com precificação multipaís e funil padrão.`,
     });
     return newService;
-  }, [services, saveServices, showToast]);
+  }, [services, saveServices, showToast, currentUser]);
 
   const updateService = useCallback((id: string, serviceData: Partial<ServiceEntity>) => {
     const existing = services.find((s) => s.id === id);
     if (!existing) return;
 
     const nowStr = new Date().toLocaleDateString('pt-BR');
+    let targetUpdated: ServiceEntity | null = null;
     const updatedServices = services.map((s) => {
       if (s.id !== id) return s;
-      return {
+      const merged = {
         ...s,
         ...serviceData,
         version: (s.version || 1) + 1, // Mantém histórico preservado
         updatedAt: nowStr,
       };
+      targetUpdated = merged;
+      return merged;
     });
 
     saveServices(updatedServices);
+
+    if (targetUpdated) {
+      upsertServiceToSupabase(targetUpdated, currentUser?.id)
+        .then((res) => {
+          if (!res.success) {
+            enqueueOfflineMutation('service', 'UPDATE', id, serviceData);
+            setPendingMutations(loadPendingQueue());
+          }
+        })
+        .catch(() => {
+          enqueueOfflineMutation('service', 'UPDATE', id, serviceData);
+          setPendingMutations(loadPendingQueue());
+        });
+    }
+
     showToast({
       type: 'success',
       title: 'Serviço Atualizado',
       message: `${serviceData.name || existing.name} atualizado. As propostas passadas permanecem protegidas.`,
     });
-  }, [services, saveServices, showToast]);
+  }, [services, saveServices, showToast, currentUser]);
 
   const duplicateService = useCallback((id: string): ServiceEntity | null => {
     const target = services.find((s) => s.id === id);
@@ -2299,6 +2651,19 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     const target = services.find((s) => s.id === id);
     const updated = services.filter((s) => s.id !== id);
     saveServices(updated);
+
+    deleteServiceFromSupabase(id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('service', 'DELETE', id, null);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('service', 'DELETE', id, null);
+        setPendingMutations(loadPendingQueue());
+      });
+
     showToast({
       type: 'warning',
       title: 'Serviço Excluído',
@@ -2331,36 +2696,68 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
     saveFunnels([...funnels, newFunnel]);
     setActiveFunnelId(newFunnel.id);
+
+    // Persistência real no Supabase
+    upsertFunnelToSupabase(newFunnel, currentUser?.id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('funnel', 'CREATE', newFunnel.id, newFunnel);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('funnel', 'CREATE', newFunnel.id, newFunnel);
+        setPendingMutations(loadPendingQueue());
+      });
+
     showToast({
       type: 'success',
       title: 'Funil Criado',
       message: `Funil "${newFunnel.name}" criado com ${newFunnel.stages.length} etapas estruturadas.`,
     });
     return newFunnel;
-  }, [funnels, saveFunnels, showToast]);
+  }, [funnels, saveFunnels, showToast, currentUser]);
 
   const updateFunnel = useCallback((id: string, updates: Partial<FunnelEntity>) => {
     const existing = funnels.find((f) => f.id === id);
     if (!existing) return;
 
     const nowIso = new Date().toISOString();
+    let targetUpdated: FunnelEntity | null = null;
     const updated = funnels.map((f) => {
       if (f.id !== id) return f;
-      return {
+      const merged = {
         ...f,
         ...updates,
         version: (f.version || 1) + 1,
         updatedAt: nowIso,
       };
+      targetUpdated = merged;
+      return merged;
     });
 
     saveFunnels(updated);
+
+    if (targetUpdated) {
+      upsertFunnelToSupabase(targetUpdated, currentUser?.id)
+        .then((res) => {
+          if (!res.success) {
+            enqueueOfflineMutation('funnel', 'UPDATE', id, updates);
+            setPendingMutations(loadPendingQueue());
+          }
+        })
+        .catch(() => {
+          enqueueOfflineMutation('funnel', 'UPDATE', id, updates);
+          setPendingMutations(loadPendingQueue());
+        });
+    }
+
     showToast({
       type: 'success',
       title: 'Funil Atualizado',
       message: `As alterações em "${updates.name || existing.name}" foram salvas com sucesso.`,
     });
-  }, [funnels, saveFunnels, showToast]);
+  }, [funnels, saveFunnels, showToast, currentUser]);
 
   const duplicateFunnel = useCallback((id: string): FunnelEntity | null => {
     const target = funnels.find((f) => f.id === id);
@@ -2437,6 +2834,19 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (activeFunnelId === id) {
       setActiveFunnelId(remaining[0]?.id || '');
     }
+
+    deleteFunnelFromSupabase(id)
+      .then((res) => {
+        if (!res.success) {
+          enqueueOfflineMutation('funnel', 'DELETE', id, null);
+          setPendingMutations(loadPendingQueue());
+        }
+      })
+      .catch(() => {
+        enqueueOfflineMutation('funnel', 'DELETE', id, null);
+        setPendingMutations(loadPendingQueue());
+      });
+
     showToast({
       type: 'warning',
       title: 'Funil Excluído',
@@ -2696,7 +3106,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     setIsConflictModalOpen(true);
   }, []);
 
-  // Executa sincronização com Supabase / réplica remota
+  // Executa sincronização com Supabase / réplica remota real
   const triggerCloudSync = useCallback(async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setSyncStatus('offline');
@@ -2705,12 +3115,79 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
     setSyncStatus('syncing');
     try {
-      // Simulação / conexão com Supabase
-      await new Promise((resolve) => setTimeout(resolve, 650));
+      // 1. Processa mutações offline acumuladas na fila local
+      const queue = loadPendingQueue();
+      if (queue.length > 0) {
+        await processOfflineMutations(
+          queue,
+          {
+            companies,
+            actions,
+            scripts: scriptsEntities,
+            funnels,
+            services,
+            objections: objectionsEntities,
+          },
+          currentUser?.id
+        );
+        setPendingMutations(loadPendingQueue());
+      }
 
-      // Limpa fila após envio
-      clearPendingQueue();
-      setPendingMutations([]);
+      // 2. Puxa estado mais recente do banco PostgreSQL no Supabase
+      const remote = await pullAllRemoteData();
+      if (remote.hasRemoteData) {
+        const cleanRemoteCompanies = (remote.companies || []).filter((c) => !isDemoCompany(c));
+        const cleanRemoteActions = (remote.actions || []).filter((a) => !isDemoAction(a));
+
+        if (cleanRemoteCompanies.length > 0) {
+          setCompanies(cleanRemoteCompanies);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-companies', JSON.stringify(cleanRemoteCompanies));
+          }
+        }
+        if (cleanRemoteActions.length > 0) {
+          setActions(cleanRemoteActions);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-prospect-actions', JSON.stringify(cleanRemoteActions));
+          }
+        }
+        if (remote.scripts.length > 0) {
+          setScriptsEntities(remote.scripts);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-scripts-v2', JSON.stringify(remote.scripts));
+          }
+        }
+        if (remote.funnels.length > 0) {
+          setFunnels(remote.funnels);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-funnels-v1', JSON.stringify(remote.funnels));
+          }
+        }
+        if (remote.services.length > 0) {
+          setServices(remote.services);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-services-v2', JSON.stringify(remote.services));
+          }
+        }
+        if (remote.objections.length > 0) {
+          setObjectionsEntities(remote.objections);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion_objections_library_v1', JSON.stringify(remote.objections));
+          }
+        }
+        if (remote.qualificationQuestions && remote.qualificationQuestions.length > 0) {
+          setQualificationQuestions(remote.qualificationQuestions);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(remote.qualificationQuestions));
+          }
+        }
+        if (remote.qualificationAnswers && Object.keys(remote.qualificationAnswers).length > 0) {
+          setQualificationAnswers(remote.qualificationAnswers);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(remote.qualificationAnswers));
+          }
+        }
+      }
 
       const nowIso = new Date().toISOString();
       setLastSyncTimestamp(nowIso);
@@ -2720,10 +3197,138 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       setSyncStatus('synced');
     } catch (err: any) {
       setSyncStatus('error');
-      const msg = err.message || 'Falha na sincronização';
+      const msg = err.message || 'Falha na sincronização com Supabase';
       setLastSyncError(msg);
       setLastSyncErrorState(msg);
     }
+  }, [companies, actions, scriptsEntities, funnels, services, objectionsEntities, currentUser]);
+
+  // ----------------------------------------------------
+  // HYDRATAÇÃO INICIAL REAL DO SUPABASE + ESCUTA DE AUTH
+  // ----------------------------------------------------
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function initializeSupabaseIntegration() {
+      try {
+        const session = await getCurrentSession();
+        if (isMounted) {
+          setCurrentSession(session);
+          setCurrentUser(session?.user || null);
+          if (session?.user?.user_metadata?.full_name) {
+            setUserNameState(session.user.user_metadata.full_name);
+          }
+          setAuthLoading(false);
+        }
+
+        // Purga ativa e segura de registros demo diretamente no Supabase
+        const client = getSupabaseClient();
+        if (client) {
+          purgeDemoDataFromSupabase(client).catch((e) => console.warn('Supabase purge:', e));
+        }
+
+        // Puxa empresas diretamente do Supabase e dados remotos consolidados
+        const [remote, compRes] = await Promise.all([
+          pullAllRemoteData(),
+          fetchCompaniesFromSupabase()
+        ]);
+        if (!isMounted) return;
+
+        const cleanDbCompanies = (compRes.data || []).filter((c) => !isDemoCompany(c));
+        const cleanRemoteCompanies = (remote.companies || []).filter((c) => !isDemoCompany(c));
+        const cleanRemoteActions = (remote.actions || []).filter((a) => !isDemoAction(a));
+
+        if (compRes.success) {
+          setCompanies(cleanDbCompanies);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-companies', JSON.stringify(cleanDbCompanies));
+            const savedSelectedId = localStorage.getItem('leadion-selected-company-id');
+            if (savedSelectedId) {
+              const matched = cleanDbCompanies.find((c) => c.id === savedSelectedId);
+              if (matched) {
+                setSelectedCompanyState(matched);
+              } else {
+                setSelectedCompanyState(null);
+                localStorage.removeItem('leadion-selected-company-id');
+              }
+            }
+          }
+        } else if (remote.hasRemoteData) {
+          setCompanies(cleanRemoteCompanies);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion-companies', JSON.stringify(cleanRemoteCompanies));
+          }
+        }
+
+        if (remote.hasRemoteData) {
+          if (cleanRemoteActions.length > 0) {
+            setActions(cleanRemoteActions);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-prospect-actions', JSON.stringify(cleanRemoteActions));
+            }
+          }
+          if (remote.scripts.length > 0) {
+            setScriptsEntities(remote.scripts);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-scripts-v2', JSON.stringify(remote.scripts));
+            }
+          }
+          if (remote.funnels.length > 0) {
+            setFunnels(remote.funnels);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-funnels-v1', JSON.stringify(remote.funnels));
+            }
+          }
+          if (remote.services.length > 0) {
+            setServices(remote.services);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-services-v2', JSON.stringify(remote.services));
+            }
+          }
+          if (remote.objections.length > 0) {
+            setObjectionsEntities(remote.objections);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion_objections_library_v1', JSON.stringify(remote.objections));
+            }
+          }
+          if (remote.qualificationQuestions && remote.qualificationQuestions.length > 0) {
+            setQualificationQuestions(remote.qualificationQuestions);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(remote.qualificationQuestions));
+            }
+          }
+          if (remote.qualificationAnswers && Object.keys(remote.qualificationAnswers).length > 0) {
+            setQualificationAnswers(remote.qualificationAnswers);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(remote.qualificationAnswers));
+            }
+          }
+          setSyncStatus('synced');
+          const nowIso = new Date().toISOString();
+          setLastSyncTimestamp(nowIso);
+          setLastSyncTimeState(nowIso);
+        }
+      } catch (err) {
+        console.warn('Iniciando em modo offline / cache local:', err);
+      }
+    }
+
+    initializeSupabaseIntegration();
+
+    const { unsubscribe } = subscribeToAuthChanges((_evt, session) => {
+      if (isMounted) {
+        setCurrentSession(session);
+        setCurrentUser(session?.user || null);
+        if (session?.user?.user_metadata?.full_name) {
+          setUserNameState(session.user.user_metadata.full_name);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   // Monitora eventos de rede
@@ -2815,12 +3420,14 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
     if (mode === 'replace') {
       if (payload.companies) {
-        setCompanies(payload.companies);
-        localStorage.setItem('leadion-companies', JSON.stringify(payload.companies));
+        const cleanPayloadCompanies = payload.companies.filter((c: Company) => !isDemoCompany(c));
+        setCompanies(cleanPayloadCompanies);
+        localStorage.setItem('leadion-companies', JSON.stringify(cleanPayloadCompanies));
       }
       if (payload.leads) {
-        setLeads(payload.leads);
-        localStorage.setItem('leadion-leads', JSON.stringify(payload.leads));
+        const cleanPayloadLeads = payload.leads.filter((l: Lead) => !isDemoLead(l));
+        setLeads(cleanPayloadLeads);
+        localStorage.setItem('leadion-leads', JSON.stringify(cleanPayloadLeads));
       }
       if (payload.scripts) {
         setScriptsEntities(payload.scripts);
@@ -2835,8 +3442,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('leadion-services-v2', JSON.stringify(payload.services));
       }
       if (payload.actions) {
-        setActions(payload.actions);
-        localStorage.setItem('leadion-prospect-actions-v2', JSON.stringify(payload.actions));
+        const cleanPayloadActions = payload.actions.filter((a: ProspectAction) => !isDemoAction(a));
+        setActions(cleanPayloadActions);
+        localStorage.setItem('leadion-prospect-actions-v2', JSON.stringify(cleanPayloadActions));
       }
       if (payload.objections) {
         setObjectionsEntities(payload.objections);
@@ -2856,7 +3464,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     } else {
       if (payload.companies) {
         const mergedComp = [...companies];
-        payload.companies.forEach((incoming) => {
+        payload.companies.filter((c: Company) => !isDemoCompany(c)).forEach((incoming) => {
           const idx = mergedComp.findIndex((c) => c.id === incoming.id || (c.name.toLowerCase().trim() === incoming.name.toLowerCase().trim()));
           if (idx >= 0) {
             const existing = mergedComp[idx];
@@ -3200,6 +3808,17 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         restoreEntireState,
         importCompaniesList,
         simulateRemoteConflict,
+
+        // Supabase Auth & Session
+        currentUser,
+        currentSession,
+        authLoading,
+        signIn,
+        signUp,
+        signOut,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        openAuthModal,
       }}
     >
       {children}

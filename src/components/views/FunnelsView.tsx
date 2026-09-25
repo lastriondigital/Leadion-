@@ -150,7 +150,7 @@ export const FunnelsView: React.FC = () => {
     return (
       <div className="p-8 text-center bg-white dark:bg-[#141720] rounded-2xl border border-zinc-200 dark:border-zinc-800">
         <GitFork className="w-12 h-12 text-[#635BFF] mx-auto mb-3" />
-        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Nenhum Funil Cadastrado</h3>
+        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Você ainda não criou nenhum funil.</h3>
         <p className="text-xs text-zinc-500 mt-1 mb-4">Crie seu primeiro funil comercial para organizar as etapas de venda.</p>
         <Button variant="primary" onClick={handleCreateNewFunnel} icon={<Plus className="w-4 h-4" />}>
           Criar Funil

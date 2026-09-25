@@ -157,7 +157,7 @@ export const CompanyTimeline: React.FC<CompanyTimelineProps> = ({
       {/* Events List */}
       {!events || events.length === 0 ? (
         <div className="p-6 text-center rounded-[12px] bg-zinc-50 dark:bg-zinc-900/40 border border-dashed border-[#E6E8EC] dark:border-zinc-800 text-xs text-zinc-400">
-          Nenhum evento registrado nesta empresa até o momento.
+          Nenhuma atividade registrada.
         </div>
       ) : (
         <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-px before:bg-zinc-200 dark:before:bg-zinc-800">

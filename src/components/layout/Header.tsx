@@ -8,7 +8,9 @@ import {
   SlidersHorizontal,
   Bell,
   Database,
-  Cloud
+  Cloud,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 import { useLeadion } from '../../context/LeadionContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -28,7 +30,10 @@ export const Header: React.FC = () => {
     pendingMutations,
     syncConflicts,
     setIsSyncCenterModalOpen,
-    openDataManagementModal
+    openDataManagementModal,
+    currentUser,
+    openAuthModal,
+    signOut,
   } = useLeadion() as any;
   const { theme, toggleTheme } = useTheme();
 
@@ -126,6 +131,32 @@ export const Header: React.FC = () => {
           conflictsCount={syncConflicts?.filter((c: any) => !c.resolved).length || 0}
           onClick={() => setIsSyncCenterModalOpen(true)}
         />
+
+        {/* Supabase Cloud Auth Button / User Session */}
+        {currentUser ? (
+          <div className="flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-900 border border-[#E6E8EC] dark:border-[#232836] rounded-[10px] px-2.5 py-1 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Autenticado no Supabase" />
+            <span className="text-zinc-700 dark:text-zinc-200 font-medium truncate max-w-[120px]" title={currentUser.email}>
+              {currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Usuário'}
+            </span>
+            <button
+              onClick={() => signOut()}
+              title="Sair da conta Supabase"
+              className="text-zinc-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer ml-0.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={openAuthModal}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs font-semibold border border-dashed border-[#635BFF]/50 hover:border-[#635BFF] bg-[#EEF0FF]/50 dark:bg-[#1E1D38]/50 text-[#635BFF] dark:text-[#9A94FF] hover:bg-[#EEF0FF] dark:hover:bg-[#1E1D38] transition-colors cursor-pointer"
+            title="Conectar sua conta ao Supabase"
+          >
+            <Cloud className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Entrar</span>
+          </button>
+        )}
 
         {/* Data & Backup Quick Action Button */}
         <Button

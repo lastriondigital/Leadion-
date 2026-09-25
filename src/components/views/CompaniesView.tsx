@@ -63,16 +63,6 @@ export const CompaniesView: React.FC = () => {
   // Active Dropdown menu state
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  // If a company is selected for deep drill-down, render CompanyDetailView
-  if (selectedCompany) {
-    return (
-      <CompanyDetailView
-        company={selectedCompany}
-        onBack={() => setSelectedCompany(null)}
-      />
-    );
-  }
-
   // All unique niches
   const niches = Array.from(new Set(companies.map((c) => c.niche || c.segment).filter(Boolean)));
 
@@ -138,6 +128,16 @@ export const CompaniesView: React.FC = () => {
 
     return { total, active, inProspecting, inMeetingOrProposal, clientsWon, avgScore };
   }, [companies]);
+
+  // If a company is selected for deep drill-down, render CompanyDetailView (after all hooks)
+  if (selectedCompany) {
+    return (
+      <CompanyDetailView
+        company={selectedCompany}
+        onBack={() => setSelectedCompany(null)}
+      />
+    );
+  }
 
   const handleOpenNewCompanyModal = () => {
     setEditingCompany(null);
@@ -393,7 +393,28 @@ export const CompaniesView: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      {filteredCompanies.length === 0 ? (
+      {companies.length === 0 ? (
+        /* Empty State Real */
+        <div className="p-12 text-center rounded-[20px] bg-white dark:bg-[#161922] border border-dashed border-[#E6E8EC] dark:border-[#232836] space-y-3">
+          <Building2 className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mx-auto" />
+          <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+            Você ainda não cadastrou nenhuma empresa.
+          </h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
+            Cadastre sua primeira empresa para organizar decisores, etapas de funil e prospecção ativa.
+          </p>
+          <div className="pt-2 flex items-center justify-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenNewCompanyModal}
+              icon={<Plus className="w-3.5 h-3.5" />}
+            >
+              Adicionar empresa
+            </Button>
+          </div>
+        </div>
+      ) : filteredCompanies.length === 0 ? (
         /* Empty State */
         <div className="p-12 text-center rounded-[20px] bg-white dark:bg-[#161922] border border-dashed border-[#E6E8EC] dark:border-[#232836] space-y-3">
           <Building2 className="w-12 h-12 text-zinc-300 dark:text-zinc-700 mx-auto" />
@@ -464,12 +485,14 @@ export const CompaniesView: React.FC = () => {
                       </h3>
                       <div className="flex items-center gap-1 text-xs text-zinc-400 mt-0.5">
                         <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
-                        <span className="truncate">{company.city || 'São Paulo'}, {company.state || 'SP'}</span>
+                        <span className="truncate">
+                          {company.city ? (company.state ? `${company.city}, ${company.state}` : company.city) : (company.location || company.country || 'Localização não informada')}
+                        </span>
                       </div>
                     </div>
 
                     <div className="shrink-0 flex items-center gap-1.5">
-                      <Score score={company.score || company.icpScore || 85} size="sm" showLabel={false} />
+                      <Score score={company.score !== undefined ? company.score : null} size="sm" showLabel={false} />
 
                       {/* Quick Dropdown Menu */}
                       <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -580,7 +603,7 @@ export const CompaniesView: React.FC = () => {
                     {company.responsibles?.length || 1} decisor(es)
                   </span>
                   <span className="text-xs font-semibold text-[#635BFF] group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                    Ver empresa
+                    Ver detalhes
                     <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>
@@ -668,7 +691,7 @@ export const CompaniesView: React.FC = () => {
 
                       {/* Score */}
                       <td className="py-3.5 px-4">
-                        <Score score={company.score || company.icpScore || 85} size="sm" showLabel={false} />
+                        <Score score={company.score !== undefined ? company.score : null} size="sm" showLabel={false} />
                       </td>
 
                       {/* Ações */}
@@ -690,7 +713,7 @@ export const CompaniesView: React.FC = () => {
                             size="sm"
                             onClick={() => setSelectedCompany(company)}
                           >
-                            Detalhes
+                            Ver detalhes
                           </Button>
                         </div>
                       </td>

@@ -36,6 +36,7 @@ import { ActionOutcomeModal } from '../modals/ActionOutcomeModal';
 import { SyncCenterModal } from '../sync/SyncCenterModal';
 import { DataManagementModal } from '../data/DataManagementModal';
 import { ConflictResolutionModal } from '../sync/ConflictResolutionModal';
+import { AuthModal } from '../modals/AuthModal';
 
 export const AppShell: React.FC = () => {
   const { 
@@ -71,6 +72,8 @@ export const AppShell: React.FC = () => {
     setIsConflictModalOpen,
     activeConflict,
     resolveActiveConflict,
+    isAuthModalOpen,
+    setIsAuthModalOpen,
   } = useLeadion() as any;
 
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
@@ -260,6 +263,12 @@ export const AppShell: React.FC = () => {
         onClose={() => setIsConflictModalOpen(false)}
         conflict={activeConflict}
         onResolve={resolveActiveConflict}
+      />
+
+      {/* Modal de Autenticação Supabase */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

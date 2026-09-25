@@ -43,6 +43,7 @@ export const ProspectTodayView: React.FC = () => {
     openActionOutcomeModal,
     openObjectionDispatchModal,
     companies,
+    setIsNewCompanyModalOpen,
   } = useLeadion();
 
   const [activeTab, setActiveTab] = useState<QueueTab>('todos');
@@ -123,6 +124,44 @@ export const ProspectTodayView: React.FC = () => {
     setPlanningPreselectedCompany(comp);
     setIsPlanningModalOpen(true);
   };
+
+  // Se não houver empresas cadastradas: Empty state profissional sem dados fictícios
+  if (companies.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 px-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl border border-zinc-200/80 p-8 sm:p-12 shadow-sm text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-[#635BFF]/10 text-[#635BFF] flex items-center justify-center mx-auto shadow-inner">
+            <Building2 className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2 max-w-md mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#111318] tracking-tight">
+              Comece sua prospecção
+            </h2>
+            <p className="text-sm text-zinc-500">
+              Cadastre sua primeira empresa para começar.
+            </p>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => setIsNewCompanyModalOpen(true)}
+              className="bg-[#635BFF] hover:bg-[#5248E5] text-white font-bold px-6 py-2.5 rounded-xl shadow-sm text-sm"
+              icon={<Plus className="w-4 h-4 mr-1.5" />}
+            >
+              Adicionar empresa
+            </Button>
+          </div>
+
+          <p className="text-xs text-zinc-400">
+            Você poderá completar os dados da empresa depois.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -556,27 +595,41 @@ export const ProspectTodayView: React.FC = () => {
               <div className="p-12 text-center bg-white rounded-2xl border border-zinc-200 shadow-xs">
                 <Inbox className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
                 <h3 className="text-base font-bold text-zinc-900">
-                  Nenhuma ação encontrada nesta visualização
+                  {searchTerm 
+                    ? 'Nenhuma ação encontrada nesta busca'
+                    : 'Você não tem ações para hoje.'}
                 </h3>
                 <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
                   {searchTerm 
                     ? `Nenhuma empresa corresponde à busca "${searchTerm}". Tente limpar o filtro.`
-                    : 'Todas as ações desta fila foram executadas. Deseja agendar novas prospecções?'}
+                    : 'Cadastre uma nova empresa ou programe ações para movimentar sua prospecção comercial.'}
                 </p>
-                <div className="mt-4">
+                <div className="mt-4 flex items-center justify-center gap-2">
                   <Button
                     variant="primary"
                     size="sm"
                     onClick={() => {
-                      setSearchTerm('');
-                      setActiveTab('todos');
-                      setIsPlanningModalOpen(true);
+                      setIsNewCompanyModalOpen(true);
                     }}
                     className="bg-[#635BFF] hover:bg-[#5248E5] text-white text-xs font-semibold"
                   >
                     <Plus className="w-3.5 h-3.5 mr-1" />
-                    Programar Nova Prospecção
+                    Adicionar empresa
                   </Button>
+                  {companies.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setActiveTab('todos');
+                        setIsPlanningModalOpen(true);
+                      }}
+                      className="text-xs font-semibold"
+                    >
+                      Programar Nova Prospecção
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : (

@@ -93,14 +93,14 @@ export const WhyThisScoreModal: React.FC<WhyThisScoreModalProps> = ({
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black text-zinc-900 dark:text-white">
-                {result.clientScore}
+                {result.clientScore !== null ? result.clientScore : '—'}
               </span>
-              <span className="text-sm font-bold text-zinc-400">/ 100</span>
+              {result.clientScore !== null && <span className="text-sm font-bold text-zinc-400">/ 100</span>}
             </div>
             <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden mt-2">
               <div 
                 className="bg-[#635BFF] h-full rounded-full transition-all duration-500"
-                style={{ width: `${result.clientScore}%` }}
+                style={{ width: `${result.clientScore ?? 0}%` }}
               />
             </div>
           </div>

@@ -201,11 +201,7 @@ export function calculateActionPriority(
     }
   }
 
-  // Se a ação for a ação exemplo 'Clínica Aurora' com prioridade calibrada
   let finalScore = Math.round(score);
-  if (action.id === 'act-aurora-01') {
-    finalScore = 96; // Prioridade canônica de referência exigida pelo prompt
-  }
 
   // Definição de Tier de Prioridade
   let priorityTier: ActionPriorityTier = 'NORMAL';

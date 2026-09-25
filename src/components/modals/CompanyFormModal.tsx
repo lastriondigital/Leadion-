@@ -24,11 +24,29 @@ import {
   Check, 
   MapPin,
   Sparkles,
-  Info
+  ArrowRight,
+  Layers,
+  MessageSquare,
+  CheckCircle2,
+  Sliders,
+  ExternalLink
 } from 'lucide-react';
 
+const COUNTRY_OPTIONS = [
+  { value: 'Moçambique', label: 'Moçambique (MT)' },
+  { value: 'Portugal', label: 'Portugal (€)' },
+  { value: 'Brasil', label: 'Brasil (R$)' },
+  { value: 'Angola', label: 'Angola (Kz)' },
+  { value: 'Estados Unidos', label: 'Estados Unidos ($)' },
+  { value: 'Reino Unido', label: 'Reino Unido (£)' },
+  { value: 'África do Sul', label: 'África do Sul (R)' },
+  { value: 'Espanha', label: 'Espanha (€)' },
+  { value: 'Cabo Verde', label: 'Cabo Verde (Esc)' },
+  { value: 'Outro', label: 'Outro País' },
+];
+
 const FUNNEL_STAGE_OPTIONS: { value: CompanyFunnelStage; label: string }[] = [
-  { value: 'prospeccao', label: 'Prospecção (Fila Ativa)' },
+  { value: 'prospeccao', label: 'Prospecção' },
   { value: 'contato_feito', label: 'Contato Feito' },
   { value: 'qualificacao', label: 'Qualificação' },
   { value: 'reuniao_agendada', label: 'Reunião Agendada' },
@@ -39,7 +57,7 @@ const FUNNEL_STAGE_OPTIONS: { value: CompanyFunnelStage; label: string }[] = [
 ];
 
 const BUSINESS_TYPE_OPTIONS = [
-  { value: 'B2B', label: 'B2B (Serviços e Soluções)' },
+  { value: 'B2B', label: 'B2B (Serviços e Soluções Corporativas)' },
   { value: 'B2C', label: 'B2C (Consumidor Final)' },
   { value: 'B2B2C', label: 'B2B2C' },
   { value: 'Franquia', label: 'Rede / Franquia' },
@@ -58,8 +76,9 @@ const SIZE_OPTIONS = [
 
 const LEAD_SOURCE_OPTIONS = [
   { value: 'Outbound Ativo', label: 'Outbound Ativo (Radar Leadion)' },
-  { value: 'LinkedIn Sales Navigator', label: 'LinkedIn / Sales Nav' },
   { value: 'Google Maps / GMB', label: 'Google Maps / Local Search' },
+  { value: 'Instagram / Redes', label: 'Instagram / Redes Sociais' },
+  { value: 'LinkedIn Sales Navigator', label: 'LinkedIn / Sales Nav' },
   { value: 'Indicação Comercial', label: 'Indicação / Parceiro' },
   { value: 'Inbound / Site', label: 'Inbound / Formulário' },
   { value: 'Eventos / Feiras', label: 'Eventos / Feiras' },
@@ -74,6 +93,8 @@ export const CompanyFormModal: React.FC = () => {
     setEditingCompany,
     addCompany,
     updateCompany,
+    setSelectedCompany,
+    setActiveNav,
     checkCompanyDuplicate,
     services,
     funnels,
@@ -81,28 +102,30 @@ export const CompanyFormModal: React.FC = () => {
 
   const isEditing = Boolean(editingCompany);
 
-  // Tab navigation inside modal
+  // Estado de sucesso pós-registro
+  const [createdCompany, setCreatedCompany] = useState<Company | null>(null);
+  const [isSuccessState, setIsSuccessState] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Tab navigation no modo de edição completa
   const [formTab, setFormTab] = useState<'empresa' | 'contatos' | 'redes' | 'responsaveis' | 'comercial'>('empresa');
 
-  // Form Fields
+  // Campos Prioritários (Fluxo Ágil)
   const [name, setName] = useState('');
-  const [niche, setNiche] = useState('');
-  const [country, setCountry] = useState('Brasil');
-  const [state, setState] = useState('SP');
+  const [country, setCountry] = useState('Moçambique');
+  const [state, setState] = useState('');
   const [city, setCity] = useState('');
-  const [location, setLocation] = useState('');
-  const [address, setAddress] = useState('');
-  const [website, setWebsite] = useState('');
-
-  // Primary Contacts
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [sameAsPhone, setSameAsPhone] = useState(false);
+
+  // Campos Complementares
+  const [niche, setNiche] = useState('');
+  const [address, setAddress] = useState('');
+  const [website, setWebsite] = useState('');
   const [email, setEmail] = useState('');
 
-  // Additional Contacts
-  const [additionalContacts, setAdditionalContacts] = useState<CompanyContact[]>([]);
-
-  // Socials
+  // Redes Sociais
   const [instagram, setInstagram] = useState('');
   const [facebook, setFacebook] = useState('');
   const [googleBusiness, setGoogleBusiness] = useState('');
@@ -110,10 +133,10 @@ export const CompanyFormModal: React.FC = () => {
   const [tiktok, setTiktok] = useState('');
   const [otherSocial, setOtherSocial] = useState('');
 
-  // Responsibles
+  // Responsáveis / Contatos
   const [responsibles, setResponsibles] = useState<CompanyResponsible[]>([
     {
-      id: `resp-init-1`,
+      id: 'resp-init-1',
       name: '',
       role: '',
       phone: '',
@@ -121,49 +144,45 @@ export const CompanyFormModal: React.FC = () => {
       email: '',
       notes: '',
       isPrimary: true,
+      isDecisionMaker: false,
     }
   ]);
 
-  // Commercial Info & Funnels
+  // Informações Comerciais
   const [unitsCount, setUnitsCount] = useState<number>(1);
   const [businessType, setBusinessType] = useState('B2B');
   const [size, setSize] = useState('11-50 colaboradores');
   const [leadSource, setLeadSource] = useState('Outbound Ativo');
   const [commercialNotes, setCommercialNotes] = useState('');
-  const [funnelId, setFunnelId] = useState<string>('');
-  const [funnelStageId, setFunnelStageId] = useState<string>('');
   const [funnelStage, setFunnelStage] = useState<CompanyFunnelStage>('prospeccao');
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [score, setScore] = useState<number>(85);
 
-  // Sync with editingCompany if open for edit
+  // Sincroniza estado ao abrir para edição ou criar nova
   useEffect(() => {
+    setIsSuccessState(false);
+    setCreatedCompany(null);
+
     if (editingCompany) {
       setName(editingCompany.name || '');
       setNiche(editingCompany.niche || '');
-      setCountry(editingCompany.country || 'Brasil');
-      setState(editingCompany.state || 'SP');
+      setCountry(editingCompany.country || 'Moçambique');
+      setState(editingCompany.state || '');
       setCity(editingCompany.city || '');
-      setLocation(editingCompany.location || '');
       setAddress(editingCompany.address || '');
       setWebsite(editingCompany.website || '');
-
       setPhone(editingCompany.phone || '');
       setWhatsapp(editingCompany.whatsapp || '');
       setEmail(editingCompany.email || '');
 
-      setAdditionalContacts(editingCompany.additionalContacts || []);
-
       setInstagram(editingCompany.socials?.instagram || '');
       setFacebook(editingCompany.socials?.facebook || '');
-      setGoogleBusiness(editingCompany.socials?.googleBusiness || '');
+      setGoogleBusiness(editingCompany.socials?.gmb || editingCompany.socials?.googleBusiness || '');
       setLinkedin(editingCompany.socials?.linkedin || '');
       setTiktok(editingCompany.socials?.tiktok || '');
       setOtherSocial(editingCompany.socials?.other || '');
 
       setResponsibles(editingCompany.responsibles?.length ? editingCompany.responsibles : [
         {
-          id: `resp-init-1`,
+          id: 'resp-init-1',
           name: '',
           role: '',
           phone: '',
@@ -171,6 +190,7 @@ export const CompanyFormModal: React.FC = () => {
           email: '',
           notes: '',
           isPrimary: true,
+          isDecisionMaker: false,
         }
       ]);
 
@@ -179,26 +199,20 @@ export const CompanyFormModal: React.FC = () => {
       setSize(editingCompany.size || '11-50 colaboradores');
       setLeadSource(editingCompany.leadSource || 'Outbound Ativo');
       setCommercialNotes(editingCompany.commercialNotes || '');
-      const defaultF = funnels.find((f) => f.isDefault) || funnels[0];
-      setFunnelId(editingCompany.funnelId || defaultF?.id || '');
-      setFunnelStageId(editingCompany.funnelStageId || defaultF?.stages[0]?.id || '');
       setFunnelStage(editingCompany.funnelStage || 'prospeccao');
-      setSelectedServices(editingCompany.associatedServices || []);
-      setScore(editingCompany.score || 85);
     } else {
-      // Reset form
+      // Reset limpo para novo registro
       setName('');
-      setNiche('');
-      setCountry('Brasil');
-      setState('SP');
+      setCountry('Moçambique');
+      setState('');
       setCity('');
-      setLocation('');
-      setAddress('');
-      setWebsite('');
       setPhone('');
       setWhatsapp('');
+      setSameAsPhone(false);
+      setNiche('');
+      setAddress('');
+      setWebsite('');
       setEmail('');
-      setAdditionalContacts([]);
       setInstagram('');
       setFacebook('');
       setGoogleBusiness('');
@@ -207,7 +221,7 @@ export const CompanyFormModal: React.FC = () => {
       setOtherSocial('');
       setResponsibles([
         {
-          id: `resp-init-1`,
+          id: 'resp-init-1',
           name: '',
           role: '',
           phone: '',
@@ -215,6 +229,7 @@ export const CompanyFormModal: React.FC = () => {
           email: '',
           notes: '',
           isPrimary: true,
+          isDecisionMaker: false,
         }
       ]);
       setUnitsCount(1);
@@ -222,826 +237,897 @@ export const CompanyFormModal: React.FC = () => {
       setSize('11-50 colaboradores');
       setLeadSource('Outbound Ativo');
       setCommercialNotes('');
-      const defaultF = funnels.find((f) => f.isDefault) || funnels[0];
-      const initialService = services[0];
-      const initialFunnelId = initialService?.defaultFunnelId || defaultF?.id || '';
-      const matchedF = funnels.find((f) => f.id === initialFunnelId) || defaultF;
-      setFunnelId(initialFunnelId);
-      setFunnelStageId(initialService?.defaultFunnelStageId || matchedF?.stages[0]?.id || '');
       setFunnelStage('prospeccao');
-      setSelectedServices(initialService ? [initialService.id] : []);
-      setScore(85);
       setFormTab('empresa');
     }
-  }, [editingCompany, isNewCompanyModalOpen, services, funnels]);
+  }, [editingCompany, isNewCompanyModalOpen]);
 
-  // Real-time Duplicate Check
+  // Alinhamento automático WhatsApp = Telefone quando checkbox ativada
+  useEffect(() => {
+    if (sameAsPhone && phone.trim()) {
+      setWhatsapp(phone.trim());
+    }
+  }, [sameAsPhone, phone]);
+
+  // Checagem de duplicidade em tempo real
   const duplicateWarning = useMemo(() => {
-    if (!name.trim() && !website.trim() && !email.trim()) return null;
-    const result = checkCompanyDuplicate(
-      name,
-      website,
-      email,
-      phone,
-      editingCompany ? editingCompany.id : undefined
-    );
-    return result.isDuplicate ? result : null;
-  }, [name, website, email, phone, checkCompanyDuplicate, editingCompany]);
+    if (!name.trim() && !phone.trim() && !whatsapp.trim()) return null;
+    return checkCompanyDuplicate(name, website, email, phone || whatsapp);
+  }, [name, website, email, phone, whatsapp, checkCompanyDuplicate]);
 
-  // Responsible Handlers
-  const handleAddResponsible = () => {
-    setResponsibles((prev) => [
-      ...prev,
-      {
-        id: `resp-${Date.now()}`,
-        name: '',
-        role: '',
-        phone: '',
-        whatsapp: '',
-        email: '',
-        notes: '',
-        isPrimary: prev.length === 0,
-      }
-    ]);
-  };
-
-  const handleUpdateResponsible = (index: number, field: keyof CompanyResponsible, value: any) => {
-    setResponsibles((prev) => {
-      const copy = [...prev];
-      if (field === 'isPrimary' && value === true) {
-        // Only one primary
-        copy.forEach((r, i) => {
-          r.isPrimary = i === index;
-        });
-      } else {
-        copy[index] = { ...copy[index], [field]: value };
-      }
-      return copy;
-    });
-  };
-
-  const handleRemoveResponsible = (index: number) => {
-    if (responsibles.length <= 1) return;
-    setResponsibles((prev) => {
-      const copy = prev.filter((_, i) => i !== index);
-      // Ensure at least one primary
-      if (!copy.some((r) => r.isPrimary) && copy.length > 0) {
-        copy[0].isPrimary = true;
-      }
-      return copy;
-    });
-  };
-
-  // Additional Contacts Handlers
-  const handleAddAdditionalContact = () => {
-    setAdditionalContacts((prev) => [
-      ...prev,
-      {
-        id: `cont-${Date.now()}`,
-        name: '',
-        role: '',
-        phone: '',
-        whatsapp: '',
-        email: '',
-        preferredChannel: 'whatsapp',
-      }
-    ]);
-  };
-
-  const handleUpdateAdditionalContact = (index: number, field: keyof CompanyContact, value: any) => {
-    setAdditionalContacts((prev) => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
-      return copy;
-    });
-  };
-
-  const handleRemoveAdditionalContact = (index: number) => {
-    setAdditionalContacts((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Service toggle
-  const toggleService = (serviceId: string) => {
-    setSelectedServices((prev) => {
-      const isRemoving = prev.includes(serviceId);
-      if (isRemoving) {
-        return prev.filter((id) => id !== serviceId);
-      } else {
-        // Automatically select the service's default funnel if available
-        const matchedService = services.find((s) => s.id === serviceId);
-        if (matchedService?.defaultFunnelId) {
-          setFunnelId(matchedService.defaultFunnelId);
-          const matchedFunnel = funnels.find((f) => f.id === matchedService.defaultFunnelId);
-          if (matchedService.defaultFunnelStageId) {
-            setFunnelStageId(matchedService.defaultFunnelStageId);
-          } else if (matchedFunnel?.stages[0]) {
-            setFunnelStageId(matchedFunnel.stages[0].id);
-          }
-        }
-        return [...prev, serviceId];
-      }
-    });
-  };
+  // Validação: Nome + País + (Telefone OU WhatsApp)
+  const hasValidContactChannel = Boolean(phone.trim().length > 0 || whatsapp.trim().length > 0);
+  const isValidToRegister = Boolean(name.trim().length > 0 && country.trim().length > 0 && hasValidContactChannel);
 
   const handleClose = () => {
     setIsNewCompanyModalOpen(false);
     setEditingCompany(null);
+    setIsSuccessState(false);
+    setCreatedCompany(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Submissão do Registro Ágil ou Edição Completa
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (!country.trim()) return;
+    if (!hasValidContactChannel) return;
 
-    const formattedLocation = location.trim() || `${city.trim() || 'São Paulo'}, ${state.trim() || 'SP'} - ${country.trim() || 'Brasil'}`;
+    setIsSubmitting(true);
+
+    const parts = [city.trim(), state.trim()].filter(Boolean);
+    const formattedLocation = parts.length > 0 
+      ? (country.trim() ? `${parts.join(', ')} - ${country.trim()}` : parts.join(', ')) 
+      : (country.trim() || '');
 
     const socialsPayload: CompanySocials = {
       instagram: instagram.trim() || undefined,
       facebook: facebook.trim() || undefined,
+      gmb: googleBusiness.trim() || undefined,
       googleBusiness: googleBusiness.trim() || undefined,
       linkedin: linkedin.trim() || undefined,
       tiktok: tiktok.trim() || undefined,
       other: otherSocial.trim() || undefined,
     };
 
-    // Filter empty responsibles
     const cleanResponsibles = responsibles
       .filter((r) => r.name.trim().length > 0)
       .map((r, idx) => ({
         ...r,
-        isPrimary: idx === 0 ? true : r.isPrimary,
+        id: r.id && !r.id.startsWith('resp-init') 
+          ? r.id 
+          : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `resp-${Date.now()}-${idx}`),
+        isPrimary: r.isPrimary ?? idx === 0,
       }));
 
-    if (cleanResponsibles.length === 0) {
-      cleanResponsibles.push({
-        id: `resp-${Date.now()}`,
-        name: 'Decisor Responsável',
-        role: 'Diretor / Sócio',
-        phone: phone.trim() || whatsapp.trim(),
+    if (isEditing && editingCompany) {
+      const payload: Partial<Company> = {
+        name: name.trim(),
+        niche: niche.trim() || editingCompany.niche || 'Geral B2B',
+        country: country.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        location: formattedLocation,
+        address: address.trim(),
+        website: website.trim(),
+        phone: phone.trim(),
         whatsapp: whatsapp.trim() || phone.trim(),
         email: email.trim(),
-        notes: '',
-        isPrimary: true,
-      });
-    }
+        socials: socialsPayload,
+        responsibles: cleanResponsibles,
+        unitsCount: Number(unitsCount) || 1,
+        businessType,
+        size,
+        leadSource,
+        commercialNotes: commercialNotes.trim(),
+        funnelStage,
+      };
 
-    const chosenFunnel = funnels.find((f) => f.id === funnelId);
-    const chosenStage = chosenFunnel?.stages.find((s) => s.id === funnelStageId);
-
-    const payload: Partial<Company> = {
-      name: name.trim(),
-      niche: niche.trim() || 'Geral B2B',
-      country: country.trim() || 'Brasil',
-      city: city.trim() || 'São Paulo',
-      state: state.trim() || 'SP',
-      location: formattedLocation,
-      address: address.trim(),
-      website: website.trim(),
-      phone: phone.trim(),
-      whatsapp: whatsapp.trim() || phone.trim(),
-      email: email.trim(),
-      additionalContacts,
-      socials: socialsPayload,
-      responsibles: cleanResponsibles,
-      unitsCount: Number(unitsCount) || 1,
-      businessType,
-      size,
-      leadSource,
-      commercialNotes: commercialNotes.trim(),
-      funnelId: funnelId || undefined,
-      funnelStageId: funnelStageId || undefined,
-      funnelStageName: chosenStage?.name || undefined,
-      funnelStage,
-      score: Number(score) || 85,
-      associatedServices: selectedServices,
-      primaryServiceId: selectedServices[0] || undefined,
-    };
-
-    if (isEditing && editingCompany) {
       updateCompany(editingCompany.id, payload);
+      setIsSubmitting(false);
+      handleClose();
     } else {
-      addCompany(payload);
-    }
+      // REGISTRO DE NOVA EMPRESA (PRINCÍPIO: EMPRESA REGISTRADA ≠ QUALIFICADA)
+      // Não atribui score, nem serviços, nem funil automático, nem próxima ação fictícia!
+      const payload: Partial<Company> = {
+        name: name.trim(),
+        niche: niche.trim() || 'Geral B2B',
+        country: country.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        location: formattedLocation,
+        address: address.trim(),
+        website: website.trim(),
+        phone: phone.trim(),
+        whatsapp: whatsapp.trim() || phone.trim(),
+        email: email.trim(),
+        socials: socialsPayload,
+        responsibles: cleanResponsibles,
+        unitsCount: Number(unitsCount) || 1,
+        businessType,
+        size,
+        leadSource,
+        commercialNotes: commercialNotes.trim(),
+        funnelStage: 'prospeccao',
+        score: null,                         // Sem score prévio
+        qualificationStatus: 'NOT_STARTED',  // Qualificação não iniciada
+        associatedServices: [],              // Sem serviço automático
+        companyServices: [],                 // Relações limpas
+        positivePoints: [],
+        negativePoints: [],
+        commercialContext: {},
+      };
 
+      const res = await addCompany(payload);
+      setIsSubmitting(false);
+
+      if (res.success && res.company) {
+        setCreatedCompany(res.company);
+        setIsSuccessState(true);
+      } else {
+        handleClose();
+      }
+    }
+  };
+
+  // Ações imediatas pós-registro
+  const handleViewCompany = () => {
+    if (createdCompany) {
+      setSelectedCompany(createdCompany);
+      setActiveNav('companies');
+    }
     handleClose();
   };
 
-  return (
-    <Modal
-      isOpen={isNewCompanyModalOpen}
-      onClose={handleClose}
-      title={isEditing ? `Editar Empresa: ${editingCompany?.name}` : 'Cadastrar Nova Empresa'}
-      description="Cadastre todas as informações cadastrais, canais de contato, decisores e inteligência comercial para prospecção ativa."
-      maxWidth="2xl"
-      footer={
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">
-              * Campos com nome e nicho são recomendados para priorização inteligente.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleClose}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleSubmit}
-              disabled={!name.trim()}
-              icon={<Check className="w-3.5 h-3.5" />}
-            >
-              {isEditing ? 'Salvar' : 'Adicionar empresa'}
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Duplicate warning alert */}
-        {duplicateWarning && (
-          <div className="p-3.5 rounded-[12px] bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-start gap-3 animate-in fade-in">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-xs leading-relaxed">
-              <span className="font-semibold block">Aviso de Possível Duplicidade:</span>
-              Já existe a empresa <strong>"{duplicateWarning.matchedValue}"</strong> cadastrada com coincidência em <em>{duplicateWarning.matchedField}</em>.
+  const handleAddService = () => {
+    if (createdCompany) {
+      setSelectedCompany(createdCompany);
+      setActiveNav('companies');
+    }
+    handleClose();
+  };
+
+  const handleEnrichData = () => {
+    if (createdCompany) {
+      setSelectedCompany(createdCompany);
+      setActiveNav('companies');
+    }
+    handleClose();
+  };
+
+  // Se estiver na tela de sucesso pós-registro:
+  if (isSuccessState && createdCompany) {
+    return (
+      <Modal
+        isOpen={isNewCompanyModalOpen}
+        onClose={handleClose}
+        title="Empresa registrada."
+        description="A empresa foi adicionada ao Leadion. Você decide quando começar o enriquecimento ou a qualificação."
+        maxWidth="lg"
+      >
+        <div className="space-y-6 py-2">
+          {/* Card de Confirmação Limpo */}
+          <div className="p-5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
-          </div>
-        )}
-
-        {/* Form Tab Bar */}
-        <div className="flex items-center gap-1.5 p-1 rounded-[12px] bg-zinc-100 dark:bg-[#12151D] border border-[#E6E8EC]/80 dark:border-[#232836] overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setFormTab('empresa')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-[9px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              formTab === 'empresa'
-                ? 'bg-white dark:bg-[#1E222E] text-zinc-900 dark:text-zinc-100 shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5 text-[#635BFF]" />
-            Empresa
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormTab('contatos')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-[9px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              formTab === 'contatos'
-                ? 'bg-white dark:bg-[#1E222E] text-zinc-900 dark:text-zinc-100 shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Phone className="w-3.5 h-3.5 text-emerald-500" />
-            Contatos ({1 + additionalContacts.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormTab('redes')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-[9px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              formTab === 'redes'
-                ? 'bg-white dark:bg-[#1E222E] text-zinc-900 dark:text-zinc-100 shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Share2 className="w-3.5 h-3.5 text-sky-500" />
-            Redes Sociais
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormTab('responsaveis')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-[9px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              formTab === 'responsaveis'
-                ? 'bg-white dark:bg-[#1E222E] text-zinc-900 dark:text-zinc-100 shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5 text-purple-500" />
-            Responsáveis ({responsibles.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormTab('comercial')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-[9px] text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              formTab === 'comercial'
-                ? 'bg-white dark:bg-[#1E222E] text-zinc-900 dark:text-zinc-100 shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
-            Comercial & Funil
-          </button>
-        </div>
-
-        {/* TAB 1: INFORMAÇÕES DA EMPRESA */}
-        {formTab === 'empresa' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Nome da Empresa *"
-                placeholder="Ex: OdontoClean Estética, NexaLog Transportes"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-              <Input
-                label="Nicho / Segmento Comercial *"
-                placeholder="Ex: Clínicas Odontológicas, Logística, Software B2B"
-                value={niche}
-                onChange={(e) => setNiche(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Input
-                label="País"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                placeholder="Brasil"
-              />
-              <Input
-                label="Estado (UF)"
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                placeholder="SP, RJ, MG..."
-              />
-              <Input
-                label="Cidade"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="São Paulo, Campinas..."
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Endereço Completo"
-                placeholder="Rua, Número, Bairro, CEP ou Referência"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-              <Input
-                label="Website Oficial"
-                placeholder="https://suaempresa.com.br"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-              />
-            </div>
-
-            <Input
-              label="Localização Resumida (Exibição nos Cards)"
-              placeholder="Ex: São Paulo, SP - Brasil"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </div>
-        )}
-
-        {/* TAB 2: CONTACTOS */}
-        {formTab === 'contatos' && (
-          <div className="space-y-5 animate-in fade-in duration-150">
-            <div className="p-4 rounded-[14px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                  Canais Principais da Empresa
-                </h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Input
-                  label="Telefone Principal"
-                  placeholder="(11) 3456-7890"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-                <Input
-                  label="WhatsApp Comercial"
-                  placeholder="(11) 98765-4321"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                />
-                <Input
-                  label="E-mail Corporativo"
-                  placeholder="contato@empresa.com.br"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-emerald-950 dark:text-emerald-200">
+                {createdCompany.name}
+              </h3>
+              <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                Registrada com sucesso em <strong className="font-semibold">{createdCompany.country}</strong>
+                {createdCompany.city ? ` · ${createdCompany.city}` : ''}.
+              </p>
+              <div className="flex items-center gap-2 pt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                <span className="font-mono">{createdCompany.whatsapp || createdCompany.phone}</span>
+                <span>•</span>
+                <span className="bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded text-[11px] font-semibold">
+                  Aguardando qualificação
+                </span>
               </div>
             </div>
-
-            {/* Additional Contacts */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                    Contatos Secundários ou Departamentos
-                  </h4>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                    Recepção, financeiro, operações ou ramais adicionais da empresa.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddAdditionalContact}
-                  icon={<Plus className="w-3.5 h-3.5" />}
-                >
-                  Adicionar Contato
-                </Button>
-              </div>
-
-              {additionalContacts.length === 0 ? (
-                <div className="p-4 rounded-[12px] border border-dashed border-zinc-200 dark:border-zinc-800 text-center text-xs text-zinc-400">
-                  Nenhum contato secundário cadastrado. Clique no botão acima para adicionar ramais ou telefones alternativos.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {additionalContacts.map((contact, idx) => (
-                    <div
-                      key={contact.id || idx}
-                      className="p-3.5 rounded-[12px] bg-white dark:bg-[#161922] border border-[#E6E8EC] dark:border-[#232836] space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#635BFF]">
-                          Contato #{idx + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAdditionalContact(idx)}
-                          className="text-rose-500 hover:text-rose-600 p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                        <Input
-                          label="Nome"
-                          placeholder="Ex: Recepção Central"
-                          value={contact.name}
-                          onChange={(e) => handleUpdateAdditionalContact(idx, 'name', e.target.value)}
-                        />
-                        <Input
-                          label="Cargo / Área"
-                          placeholder="Ex: Administrativo"
-                          value={contact.role || ''}
-                          onChange={(e) => handleUpdateAdditionalContact(idx, 'role', e.target.value)}
-                        />
-                        <Input
-                          label="Telefone / Whats"
-                          placeholder="(11) 99999-9999"
-                          value={contact.phone || ''}
-                          onChange={(e) => handleUpdateAdditionalContact(idx, 'phone', e.target.value)}
-                        />
-                        <Input
-                          label="E-mail"
-                          placeholder="atendimento@empresa.com"
-                          value={contact.email || ''}
-                          onChange={(e) => handleUpdateAdditionalContact(idx, 'email', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
-        )}
 
-        {/* TAB 3: REDES SOCIAIS */}
-        {formTab === 'redes' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Links diretos para inteligência e prospecção rápida em redes e perfis públicos.
+          <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+            <div className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#635BFF]" />
+              Princípio Leadion: Nenhum dado fictício gerado
+            </div>
+            <p>
+              Nenhum score inventado ou tarefa falsa foi criada para esta empresa. O restante dos dados e o serviço comercial podem ser adicionados agora ou quando desejar.
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Instagram"
-                placeholder="https://instagram.com/empresa ou @empresa"
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-              />
-              <Input
-                label="LinkedIn (Página da Empresa)"
-                placeholder="https://linkedin.com/company/empresa"
-                value={linkedin}
-                onChange={(e) => setLinkedin(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Google Business Profile (GMB / Google Maps)"
-                placeholder="https://maps.google.com/?cid=... ou link da ficha"
-                value={googleBusiness}
-                onChange={(e) => setGoogleBusiness(e.target.value)}
-              />
-              <Input
-                label="Facebook"
-                placeholder="https://facebook.com/empresa"
-                value={facebook}
-                onChange={(e) => setFacebook(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="TikTok"
-                placeholder="https://tiktok.com/@empresa"
-                value={tiktok}
-                onChange={(e) => setTiktok(e.target.value)}
-              />
-              <Input
-                label="Outro Link Relevante (Canal YouTube, Catálogo, etc.)"
-                placeholder="https://..."
-                value={otherSocial}
-                onChange={(e) => setOtherSocial(e.target.value)}
-              />
-            </div>
           </div>
-        )}
 
-        {/* TAB 4: RESPONSÁVEIS / DECISORES */}
-        {formTab === 'responsaveis' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between">
+          {/* 3 Opções Claras Imediatas */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleViewCompany}
+              className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#161922] hover:border-[#635BFF] hover:shadow-md transition-all text-left group cursor-pointer flex flex-col justify-between"
+            >
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                  Decisores & Responsáveis Comerciais
+                <Building2 className="w-5 h-5 text-[#635BFF] mb-2" />
+                <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-[#635BFF] transition-colors">
+                  Ver Empresa
                 </h4>
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Mapeie sócios, diretores ou gerentes com quem as conversas e reuniões acontecerão.
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Abrir a ficha completa e visão geral da empresa.
                 </p>
               </div>
+              <span className="text-[11px] font-bold text-[#635BFF] flex items-center gap-1 mt-3">
+                Abrir <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAddService}
+              className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#161922] hover:border-[#635BFF] hover:shadow-md transition-all text-left group cursor-pointer flex flex-col justify-between"
+            >
+              <div>
+                <Briefcase className="w-5 h-5 text-[#635BFF] mb-2" />
+                <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-[#635BFF] transition-colors">
+                  Adicionar Serviço
+                </h4>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Vincular oferta comercial (Landing Page, Website, etc.) e precificação.
+                </p>
+              </div>
+              <span className="text-[11px] font-bold text-[#635BFF] flex items-center gap-1 mt-3">
+                Selecionar <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleEnrichData}
+              className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#161922] hover:border-[#635BFF] hover:shadow-md transition-all text-left group cursor-pointer flex flex-col justify-between"
+            >
+              <div>
+                <Share2 className="w-5 h-5 text-[#635BFF] mb-2" />
+                <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-[#635BFF] transition-colors">
+                  Enriquecer Dados
+                </h4>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Adicionar website, GMB, Instagram, decisores ou endereço.
+                </p>
+              </div>
+              <span className="text-[11px] font-bold text-[#635BFF] flex items-center gap-1 mt-3">
+                Completar <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // MODO 1: CADASTRO ÁGIL (QUANDO NÃO ESTIVER EM EDIÇÃO)
+  if (!isEditing) {
+    return (
+      <Modal
+        isOpen={isNewCompanyModalOpen}
+        onClose={handleClose}
+        title="Registrar Empresa"
+        description="Preencha os dados prioritários para criar o lead. Serviços, presença digital e qualificação podem ser completados depois."
+        maxWidth="lg"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <div className="text-xs text-zinc-500">
+              * Obrigatórios: <span className="font-semibold text-zinc-700 dark:text-zinc-300">Nome</span>, <span className="font-semibold text-zinc-700 dark:text-zinc-300">País</span> e pelo menos <span className="font-semibold text-zinc-700 dark:text-zinc-300">1 contato (Telefone ou WhatsApp)</span>.
+            </div>
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleAddResponsible}
-                icon={<Plus className="w-3.5 h-3.5" />}
+                onClick={handleClose}
+                disabled={isSubmitting}
               >
-                Adicionar Responsável
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleSubmit}
+                disabled={!isValidToRegister || isSubmitting}
+                icon={<Check className="w-3.5 h-3.5" />}
+              >
+                {isSubmitting ? 'Registrando...' : 'Registrar Empresa'}
               </Button>
             </div>
-
-            <div className="space-y-4">
-              {responsibles.map((resp, idx) => (
-                <div
-                  key={resp.id || idx}
-                  className={`p-4 rounded-[14px] border transition-all ${
-                    resp.isPrimary
-                      ? 'bg-[#635BFF]/5 border-[#635BFF]/40 shadow-xs'
-                      : 'bg-white dark:bg-[#161922] border-[#E6E8EC] dark:border-[#232836]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                        Responsável #{idx + 1}
-                      </span>
-                      {resp.isPrimary && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-md font-bold bg-[#635BFF] text-white">
-                          Decisor Principal
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {!resp.isPrimary && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateResponsible(idx, 'isPrimary', true)}
-                          className="text-xs text-[#635BFF] hover:underline font-semibold cursor-pointer"
-                        >
-                          Definir como Principal
-                        </button>
-                      )}
-                      {responsibles.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveResponsible(idx)}
-                          className="text-rose-500 hover:text-rose-600 p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                    <Input
-                      label="Nome Completo *"
-                      placeholder="Ex: Dr. Roberto Alencar"
-                      value={resp.name}
-                      onChange={(e) => handleUpdateResponsible(idx, 'name', e.target.value)}
-                      required
-                    />
-                    <Input
-                      label="Cargo / Função *"
-                      placeholder="Ex: Sócio Diretor, Head Comercial"
-                      value={resp.role}
-                      onChange={(e) => handleUpdateResponsible(idx, 'role', e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                    <Input
-                      label="Telefone Direto"
-                      placeholder="(11) 98765-4321"
-                      value={resp.phone || ''}
-                      onChange={(e) => handleUpdateResponsible(idx, 'phone', e.target.value)}
-                    />
-                    <Input
-                      label="WhatsApp"
-                      placeholder="(11) 98765-4321"
-                      value={resp.whatsapp || ''}
-                      onChange={(e) => handleUpdateResponsible(idx, 'whatsapp', e.target.value)}
-                    />
-                    <Input
-                      label="E-mail Individual"
-                      placeholder="roberto@empresa.com.br"
-                      value={resp.email || ''}
-                      onChange={(e) => handleUpdateResponsible(idx, 'email', e.target.value)}
-                    />
-                  </div>
-
-                  <Input
-                    label="Observações sobre o Perfil do Decisor"
-                    placeholder="Ex: Foco total em ROI, perfil analítico, prefere mensagens curtas no WhatsApp pela manhã."
-                    value={resp.notes || ''}
-                    onChange={(e) => handleUpdateResponsible(idx, 'notes', e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
           </div>
-        )}
-
-        {/* TAB 5: INFORMAÇÕES COMERCIAIS */}
-        {formTab === 'comercial' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        }
+      >
+        <form onSubmit={handleSubmit} className="space-y-5 py-1">
+          {/* Alerta de Duplicata em tempo real */}
+          {duplicateWarning?.isDuplicate && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Número de Unidades
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={999}
-                  className="w-full h-9 px-3 rounded-[9px] border border-[#E6E8EC] dark:border-[#232836] bg-white dark:bg-[#12151D] text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#635BFF]"
-                  value={unitsCount}
-                  onChange={(e) => setUnitsCount(parseInt(e.target.value) || 1)}
-                />
-              </div>
-
-              <Select
-                label="Tipo de Negócio"
-                options={BUSINESS_TYPE_OPTIONS}
-                value={businessType}
-                onChange={(e) => setBusinessType(e.target.value)}
-              />
-
-              <Select
-                label="Porte / Tamanho"
-                options={SIZE_OPTIONS}
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Select
-                label="Fonte do Lead"
-                options={LEAD_SOURCE_OPTIONS}
-                value={leadSource}
-                onChange={(e) => setLeadSource(e.target.value)}
-              />
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Funil Atribuído
-                </label>
-                <select
-                  value={funnelId}
-                  onChange={(e) => {
-                    const newFId = e.target.value;
-                    setFunnelId(newFId);
-                    const selectedF = funnels.find((f) => f.id === newFId);
-                    if (selectedF && selectedF.stages.length > 0) {
-                      setFunnelStageId(selectedF.stages[0].id);
-                    }
-                  }}
-                  className="w-full h-9 px-3 rounded-[9px] border border-[#E6E8EC] dark:border-[#232836] bg-white dark:bg-[#12151D] text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#635BFF]"
-                >
-                  {funnels.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} {f.isDefault ? '(Padrão)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Etapa do Funil
-                </label>
-                <select
-                  value={funnelStageId}
-                  onChange={(e) => setFunnelStageId(e.target.value)}
-                  className="w-full h-9 px-3 rounded-[9px] border border-[#E6E8EC] dark:border-[#232836] bg-white dark:bg-[#12151D] text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#635BFF]"
-                >
-                  {(funnels.find((f) => f.id === funnelId)?.stages || []).map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.name}
-                    </option>
-                  ))}
-                </select>
+                <span className="font-bold">Atenção:</span> Possível lead já existente por {duplicateWarning.matchedField}:{' '}
+                <span className="font-semibold underline">"{duplicateWarning.matchedValue}"</span>.
               </div>
             </div>
+          )}
 
-            {/* ICP Score */}
-            <div className="p-3.5 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#635BFF]" />
-                  Pontuação de Aderência ICP: {score}/100
+          {/* PAINEL DE CAMPOS PRIORITÁRIOS COM DESTAQUE VISUAL */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-zinc-50/70 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800 space-y-4">
+            
+            {/* 1. Nome da Empresa */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-[#635BFF]" />
+                  <span>1. Nome da empresa</span>
+                  <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <span className={`text-xs font-bold ${score >= 80 ? 'text-emerald-500' : score >= 60 ? 'text-amber-500' : 'text-zinc-400'}`}>
-                  {score >= 80 ? 'Alta Prioridade' : score >= 60 ? 'Média Aderência' : 'Baixa Aderência'}
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#635BFF] bg-[#635BFF]/10 px-2 py-0.5 rounded">
+                  Prioritário
                 </span>
               </div>
               <input
-                type="range"
-                min={20}
-                max={100}
-                step={5}
-                value={score}
-                onChange={(e) => setScore(Number(e.target.value))}
-                className="w-full accent-[#635BFF] cursor-pointer"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Clínica Aurora, Maputo Tech, Veloce..."
+                required
+                autoFocus
+                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF] focus:ring-2 focus:ring-[#635BFF]/20 font-medium"
               />
             </div>
 
-            {/* Associated Services */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                Serviços Associados (O que oferecer a esta empresa?)
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {services.map((serv) => {
-                  const isChecked = selectedServices.includes(serv.id);
-                  return (
-                    <div
-                      key={serv.id}
-                      onClick={() => toggleService(serv.id)}
-                      className={`p-3 rounded-[10px] border transition-all cursor-pointer flex items-start justify-between gap-2 ${
-                        isChecked
-                          ? 'bg-[#635BFF]/10 border-[#635BFF] text-zinc-900 dark:text-zinc-100'
-                          : 'bg-white dark:bg-[#161922] border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
-                      }`}
-                    >
-                      <div>
-                        <span className="text-xs font-semibold block">{serv.name}</span>
-                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5">
-                          {serv.standardTicket} • {serv.coreValueProposition}
-                        </span>
-                      </div>
-                      <div className={`w-4 h-4 rounded flex items-center justify-center border mt-0.5 shrink-0 ${
-                        isChecked ? 'bg-[#635BFF] border-[#635BFF] text-white' : 'border-zinc-300 dark:border-zinc-700'
-                      }`}>
-                        {isChecked && <Check className="w-3 h-3" />}
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* 2. País */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-[#635BFF]" />
+                  <span>2. País</span>
+                  <span className="text-rose-500 font-bold">*</span>
+                </label>
+                <span className="text-[10px] text-zinc-400">Usado para precificação e moeda</span>
+              </div>
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-sm text-zinc-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-[#635BFF] focus:ring-2 focus:ring-[#635BFF]/20"
+              >
+                {COUNTRY_OPTIONS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3 & 4. Estado/Província e Região/Cidade */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>3. Estado / Província</span>
+                  </label>
+                  <span className="text-[10px] text-zinc-400">Recomendado</span>
+                </div>
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="Ex: Maputo Cidade, SP, Luanda..."
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>4. Região / Cidade</span>
+                  </label>
+                  <span className="text-[10px] text-zinc-400">Recomendado</span>
+                </div>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Ex: Maputo, Matola, São Paulo, Porto..."
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF]"
+                />
               </div>
             </div>
 
-            {/* Commercial Notes */}
+            {/* 5 & 6. Telefone e WhatsApp (Pelo menos um obrigatório) */}
+            <div className="pt-2 border-t border-zinc-200/70 dark:border-zinc-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <Phone className="w-4 h-4 text-[#635BFF]" />
+                  <span>Canais de Contato</span>
+                  <span className="text-rose-500 font-bold">*</span>
+                </span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                  hasValidContactChannel 
+                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400' 
+                    : 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400'
+                }`}>
+                  {hasValidContactChannel ? 'Contato Válido' : 'Preencha Telefone OU WhatsApp'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    5. Telefone
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Ex: +258 84 123 4567 ou (11) 98765-4321"
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF]"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                      <MessageSquare className="w-3 h-3 text-emerald-500" />
+                      <span>6. WhatsApp</span>
+                    </label>
+                    {phone.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSameAsPhone(!sameAsPhone);
+                          if (!sameAsPhone) setWhatsapp(phone.trim());
+                        }}
+                        className="text-[10px] text-[#635BFF] hover:underline cursor-pointer"
+                      >
+                        {sameAsPhone ? 'Desvincular' : 'Mesmo que o telefone'}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="tel"
+                    value={whatsapp}
+                    onChange={(e) => {
+                      setWhatsapp(e.target.value);
+                      if (sameAsPhone) setSameAsPhone(false);
+                    }}
+                    placeholder="Ex: +258 84 123 4567 ou (11) 98765-4321"
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#635BFF]"
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Dica de Enriquecimento */}
+          <div className="flex items-center justify-between px-1 text-xs text-zinc-500">
+            <span>Redes sociais, decisores e contexto comercial podem ser adicionados após o registro.</span>
+          </div>
+        </form>
+      </Modal>
+    );
+  }
+
+  // MODO 2: EDIÇÃO COMPLETA DE EMPRESA EXISTENTE
+  return (
+    <Modal
+      isOpen={isNewCompanyModalOpen}
+      onClose={handleClose}
+      title={`Editar Empresa: ${editingCompany?.name}`}
+      description="Edite informações cadastrais, contatos, redes sociais e notas estratégicas."
+      maxWidth="2xl"
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleClose}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={handleSubmit}
+            disabled={!name.trim()}
+            icon={<Check className="w-3.5 h-3.5" />}
+          >
+            Salvar Alterações
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 py-1">
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 pb-2 overflow-x-auto">
+          {[
+            { id: 'empresa', label: 'Dados Básicos', icon: <Building2 className="w-3.5 h-3.5" /> },
+            { id: 'contatos', label: 'Canais de Contato', icon: <Phone className="w-3.5 h-3.5" /> },
+            { id: 'redes', label: 'Redes & Web', icon: <Globe className="w-3.5 h-3.5" /> },
+            { id: 'responsaveis', label: 'Decisores', icon: <UserCheck className="w-3.5 h-3.5" /> },
+            { id: 'comercial', label: 'Comercial', icon: <Briefcase className="w-3.5 h-3.5" /> },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFormTab(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                formTab === tab.id
+                  ? 'bg-[#635BFF] text-white shadow-xs'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab 1: Dados Básicos */}
+        {formTab === 'empresa' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Nome da Empresa *
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs font-medium focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  País *
+                </label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs font-medium focus:outline-none focus:border-[#635BFF]"
+                >
+                  {COUNTRY_OPTIONS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Nicho / Segmento
+                </label>
+                <input
+                  type="text"
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
+                  placeholder="Ex: Clínica Odontológica"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Estado / Província
+                </label>
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Cidade
+                </label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                Observações Comerciais & Dores Identificadas
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                Endereço Completo
               </label>
-              <textarea
-                rows={3}
-                className="w-full p-3 rounded-[10px] border border-[#E6E8EC] dark:border-[#232836] bg-white dark:bg-[#12151D] text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#635BFF] leading-relaxed resize-none"
-                placeholder="Ex: Empresa em expansão com 2 novas filiais abertas. Dificuldade de acompanhamento de equipe comercial. Decisor busca automação de ponta a ponta."
-                value={commercialNotes}
-                onChange={(e) => setCommercialNotes(e.target.value)}
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Av. 24 de Julho, 1234, Maputo"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
               />
             </div>
           </div>
         )}
-      </form>
+
+        {/* Tab 2: Contatos */}
+        {formTab === 'contatos' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Telefone Principal
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  WhatsApp
+                </label>
+                <input
+                  type="tel"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  E-mail Geral
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Redes & Presença Digital */}
+        {formTab === 'redes' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Website / Domínio
+                </label>
+                <input
+                  type="url"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="https://exemplo.co.mz"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Google Meu Negócio (GMB)
+                </label>
+                <input
+                  type="text"
+                  value={googleBusiness}
+                  onChange={(e) => setGoogleBusiness(e.target.value)}
+                  placeholder="Link da ficha no Google Maps"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Instagram (@usuario ou link)
+                </label>
+                <input
+                  type="text"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  placeholder="@clinicaaurora"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  LinkedIn
+                </label>
+                <input
+                  type="text"
+                  value={linkedin}
+                  onChange={(e) => setLinkedin(e.target.value)}
+                  placeholder="linkedin.com/company/..."
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs focus:outline-none focus:border-[#635BFF]"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Responsáveis / Decisores */}
+        {formTab === 'responsaveis' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                Lista de Contatos e Decisores
+              </span>
+              <button
+                type="button"
+                onClick={() => setResponsibles((prev) => [
+                  ...prev,
+                  {
+                    id: `resp-${Date.now()}`,
+                    name: '',
+                    role: '',
+                    phone: '',
+                    whatsapp: '',
+                    email: '',
+                    isPrimary: false,
+                    isDecisionMaker: false,
+                  }
+                ])}
+                className="text-xs text-[#635BFF] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Adicionar Contato
+              </button>
+            </div>
+
+            {responsibles.map((r, idx) => (
+              <div key={r.id || idx} className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-zinc-600 dark:text-zinc-400">
+                    Contato #{idx + 1}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1 text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={r.isDecisionMaker || false}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setResponsibles((prev) => prev.map((item, i) => i === idx ? { ...item, isDecisionMaker: val } : item));
+                        }}
+                        className="rounded border-zinc-300 text-[#635BFF]"
+                      />
+                      <span>Decisor</span>
+                    </label>
+                    <label className="flex items-center gap-1 text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={r.isPrimary || false}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setResponsibles((prev) => prev.map((item, i) => i === idx ? { ...item, isPrimary: val } : { ...item, isPrimary: false }));
+                        }}
+                        className="rounded border-zinc-300 text-[#635BFF]"
+                      />
+                      <span>Principal</span>
+                    </label>
+                    {responsibles.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setResponsibles((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={r.name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setResponsibles((prev) => prev.map((item, i) => i === idx ? { ...item, name: val } : item));
+                    }}
+                    placeholder="Nome completo"
+                    className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+                  />
+                  <input
+                    type="text"
+                    value={r.role}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setResponsibles((prev) => prev.map((item, i) => i === idx ? { ...item, role: val } : item));
+                    }}
+                    placeholder="Cargo (ex: Diretor Clínico, Sócio)"
+                    className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+                  />
+                  <input
+                    type="tel"
+                    value={r.phone}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setResponsibles((prev) => prev.map((item, i) => i === idx ? { ...item, phone: val } : item));
+                    }}
+                    placeholder="Telefone / Celular"
+                    className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+                  />
+                  <input
+                    type="tel"
+                    value={r.whatsapp}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setResponsibles((prev) => prev.map((item, i) => i === idx ? { ...item, whatsapp: val } : item));
+                    }}
+                    placeholder="WhatsApp direto"
+                    className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tab 5: Comercial */}
+        {formTab === 'comercial' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Tipo de Negócio
+                </label>
+                <select
+                  value={businessType}
+                  onChange={(e) => setBusinessType(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+                >
+                  {BUSINESS_TYPE_OPTIONS.map((b) => (
+                    <option key={b.value} value={b.value}>{b.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Tamanho / Colaboradores
+                </label>
+                <select
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+                >
+                  {SIZE_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                Notas Comerciais
+              </label>
+              <textarea
+                value={commercialNotes}
+                onChange={(e) => setCommercialNotes(e.target.value)}
+                rows={3}
+                placeholder="Observações estratégicas sobre o cliente..."
+                className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#161922] text-xs"
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </Modal>
   );
 };

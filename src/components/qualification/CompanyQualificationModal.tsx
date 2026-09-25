@@ -41,19 +41,12 @@ export const CompanyQualificationModal: React.FC<CompanyQualificationModalProps>
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
   const [activeSection, setActiveSection] = useState<'client' | 'services'>('client');
 
-  // Inicializa respostas locais quando abrir
+  // Inicializa respostas locais quando abrir (somente respostas reais salvas pelo usuário)
   React.useEffect(() => {
-    if (company) {
-      const initial: Record<string, string> = { ...(savedAnswers || {}) };
-      // Preenche defaults caso não respondido
-      questions.forEach((q) => {
-        if (!initial[q.id]) {
-          initial[q.id] = inferDefaultAnswerForQuestion(q, company);
-        }
-      });
-      setLocalAnswers(initial);
+    if (company && isOpen) {
+      setLocalAnswers({ ...(savedAnswers || {}) });
     }
-  }, [company, questions, savedAnswers, isOpen]);
+  }, [company, savedAnswers, isOpen]);
 
   if (!isOpen || !company) return null;
 
@@ -118,7 +111,7 @@ export const CompanyQualificationModal: React.FC<CompanyQualificationModalProps>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-zinc-500">Score Cliente:</span>
               <span className="font-mono font-black text-base px-2.5 py-0.5 rounded-lg bg-[#635BFF] text-white">
-                {liveResult.clientScore}/100
+                {liveResult.clientScore !== null ? `${liveResult.clientScore}/100` : '—'}
               </span>
               <span className="text-[11px] text-zinc-600 dark:text-zinc-400 font-semibold">
                 ({liveResult.clientLevel})
@@ -134,7 +127,7 @@ export const CompanyQualificationModal: React.FC<CompanyQualificationModalProps>
                   className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
                   title={s.serviceName}
                 >
-                  {s.serviceName.split(' ')[0]}: {s.score}
+                  {s.serviceName.split(' ')[0]}: {s.score !== null ? `${s.score}/100` : '—'}
                 </span>
               ))}
             </div>

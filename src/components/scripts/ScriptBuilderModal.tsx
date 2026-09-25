@@ -134,11 +134,10 @@ export const ScriptBuilderModal: React.FC<ScriptBuilderModalProps> = ({
     }
   }, [editingScript, isOpen, services, funnels]);
 
-  // Define empresa de teste para a prévia (preferencialmente Clínica Aurora)
+  // Define empresa de teste para a prévia (primeira empresa cadastrada)
   useEffect(() => {
     if (companies.length > 0 && !selectedCompanyId) {
-      const aurora = companies.find((c) => c.name.toLowerCase().includes('aurora'));
-      setSelectedCompanyId(aurora ? aurora.id : companies[0].id);
+      setSelectedCompanyId(companies[0].id);
     }
   }, [companies, selectedCompanyId]);
 
@@ -684,22 +683,30 @@ export const ScriptBuilderModal: React.FC<ScriptBuilderModalProps> = ({
                   onChange={(e) => setSelectedCompanyId(e.target.value)}
                   className="w-full text-xs px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none"
                 >
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.city || c.location}) — {c.country}
-                    </option>
-                  ))}
+                  {companies.length === 0 ? (
+                    <option value="">Nenhuma empresa cadastrada</option>
+                  ) : (
+                    companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.city || c.location || 'Sem local'}) — {c.country}
+                      </option>
+                    ))
+                  )}
                 </select>
 
-                {testCompany && (
+                {testCompany ? (
                   <div className="text-[11px] text-zinc-500 space-y-0.5 pt-1">
                     <div>
-                      Decisor: <strong>{testCompany.targetContactName || testCompany.responsibles?.[0]?.name || 'Dr(a). Samira'}</strong> ({testCompany.targetContactRole || 'Diretoria'})
+                      Decisor: <strong>{testCompany.targetContactName || testCompany.responsibles?.[0]?.name || 'Não cadastrado'}</strong> ({testCompany.targetContactRole || 'Diretoria'})
                     </div>
                     <div>
                       País: <strong>{testCompany.country}</strong> · Telefone: <strong>{testCompany.whatsapp || testCompany.phone || 'N/D'}</strong>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-[11px] text-zinc-400 italic pt-1">
+                    Cadastre uma empresa para testar as variáveis personalizadas.
+                  </p>
                 )}
               </div>
 
@@ -710,11 +717,11 @@ export const ScriptBuilderModal: React.FC<ScriptBuilderModalProps> = ({
                 <div className="px-4 py-2.5 bg-[#075E54] text-white flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                      {testCompany?.name.charAt(0) || 'C'}
+                      {testCompany?.name?.charAt(0) || '?'}
                     </div>
                     <div>
                       <div className="text-xs font-bold leading-tight truncate max-w-[160px]">
-                        {testCompany?.targetContactName || testCompany?.name || 'Decisor'}
+                        {testCompany?.targetContactName || testCompany?.responsibles?.[0]?.name || testCompany?.name || 'Decisor / Contato'}
                       </div>
                       <span className="text-[10px] text-emerald-200">online no WhatsApp</span>
                     </div>

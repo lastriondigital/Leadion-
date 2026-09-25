@@ -41,8 +41,6 @@ export const SyncCenterModal: React.FC<SyncCenterModalProps> = ({
   onClose,
   onOpenDataModal,
 }) => {
-  if (!isOpen) return null;
-
   const {
     syncStatus,
     pendingMutations,
@@ -64,6 +62,8 @@ export const SyncCenterModal: React.FC<SyncCenterModalProps> = ({
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; latencyMs?: number } | null>(null);
   const [copiedSchema, setCopiedSchema] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleTestConnection = async () => {
     setIsTestingConn(true);

@@ -252,7 +252,25 @@ export const ObjectionsView: React.FC = () => {
 
       {/* Lista de Objeções */}
       <div className="space-y-4">
-        {filteredObjections.length === 0 ? (
+        {objectionsEntities.length === 0 ? (
+          <div className="p-8 rounded-2xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 text-center space-y-3">
+            <ShieldAlert className="w-10 h-10 text-zinc-300 mx-auto" />
+            <div className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+              Nenhuma objeção cadastrada.
+            </div>
+            <p className="text-xs text-zinc-500 max-w-md mx-auto">
+              Cadastre objeções reais e argumentos de contorno para guiar sua equipe de vendas.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCreateNewObjection}
+              icon={<Plus className="w-3.5 h-3.5" />}
+            >
+              Nova Objeção
+            </Button>
+          </div>
+        ) : filteredObjections.length === 0 ? (
           <div className="p-8 rounded-2xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 text-center space-y-3">
             <ShieldAlert className="w-10 h-10 text-zinc-300 mx-auto" />
             <div className="text-sm font-bold text-zinc-700 dark:text-zinc-300">

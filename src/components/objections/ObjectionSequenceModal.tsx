@@ -642,11 +642,15 @@ export const ObjectionSequenceModal: React.FC = () => {
                 onChange={(e) => setPreviewCompanyId(e.target.value)}
                 className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-zinc-800 dark:text-zinc-200"
               >
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.decisionMakerName || 'Sem decisor'})
-                  </option>
-                ))}
+                {companies.length === 0 ? (
+                  <option value="">Nenhuma empresa cadastrada</option>
+                ) : (
+                  companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.decisionMakerName || c.responsibles?.[0]?.name || 'Sem decisor'})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>

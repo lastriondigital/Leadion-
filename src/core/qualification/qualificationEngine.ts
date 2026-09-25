@@ -98,6 +98,43 @@ export function calculateCompanyQualification(
 ): CompanyScoreResult {
   const activeQuestions = questions.filter((q) => q.status === 'active');
   const clientQuestions = activeQuestions.filter((q) => q.targetType === 'client');
+  const answeredKeys = Object.keys(customAnswers);
+  const hasAnyAnswers = answeredKeys.length > 0;
+
+  // Se o usuário ainda não respondeu nenhuma pergunta de qualificação para a empresa:
+  if (!hasAnyAnswers) {
+    const defaultServices = services.length > 0
+      ? services
+      : [
+          { id: 'serv-landing-page', name: 'Landing Page de Alta Conversão', active: true },
+          { id: 'serv-website-institucional', name: 'Website Institucional', active: true },
+          { id: 'serv-identidade-visual', name: 'Identidade Visual & Design', active: true },
+        ];
+
+    const unratedServiceScores: ServiceScoreItem[] = defaultServices.map((s) => ({
+      serviceId: s.id,
+      serviceName: s.name,
+      score: null,
+      level: 'Não qualificado' as const,
+      breakdown: [],
+      questionsCount: activeQuestions.filter((q) => q.targetType === 'service' && (q.serviceId === s.id || !q.serviceId || q.serviceId === 'all')).length,
+    }));
+
+    return {
+      companyId: company.id,
+      companyName: company.name,
+      isQualified: false,
+      clientScore: null,
+      clientLevel: 'Não qualificado',
+      clientBreakdown: [],
+      serviceScores: unratedServiceScores,
+      recommendedService: null,
+      totalAnswered: 0,
+      totalQuestions: activeQuestions.length,
+      calculatedAt: new Date().toISOString(),
+      auditHash: `unrated-${company.id}`,
+    };
+  }
 
   // ==========================================
   // 1. CÁLCULO AUDITÁVEL DO SCORE DO CLIENTE
@@ -107,9 +144,11 @@ export function calculateCompanyQualification(
   const clientBreakdown: AuditScoreBreakdownItem[] = [];
 
   for (const q of clientQuestions) {
-    const answeredVal = customAnswers[q.id] || inferDefaultAnswerForQuestion(q, company);
-    const chosenOption = q.options.find((opt) => opt.value === answeredVal) || q.options[0];
+    // Apenas usa resposta real do operador ou fallback neutro se respondeu parcialmente
+    const answeredVal = customAnswers[q.id];
+    if (!answeredVal) continue;
 
+    const chosenOption = q.options.find((opt) => opt.value === answeredVal) || q.options[0];
     const pointsEarned = chosenOption ? chosenOption.points : 0;
     const maxPoints = Math.max(...q.options.map((o) => o.points), 1);
     const weight = q.weight > 0 ? q.weight : 1;
@@ -133,16 +172,15 @@ export function calculateCompanyQualification(
       weight,
       weightedEarned,
       weightedMax,
-      contributionPercentage: 0, // calculado no próximo passo
+      contributionPercentage: 0,
       rationale: q.rationale || 'Critério auditado de qualificação comercial.',
     });
   }
 
   // Normalização do Score do Cliente (0 a 100)
-  const rawClientScore = clientWeightedMaxTotal > 0
-    ? (clientWeightedEarnedTotal / clientWeightedMaxTotal) * 100
-    : 50;
-  const clientScore = Math.min(100, Math.max(0, Math.round(rawClientScore)));
+  const clientScore = clientWeightedMaxTotal > 0
+    ? Math.min(100, Math.max(0, Math.round((clientWeightedEarnedTotal / clientWeightedMaxTotal) * 100)))
+    : null;
 
   // Atualiza percentual de contribuição individual para auditoria
   clientBreakdown.forEach((item) => {
@@ -152,16 +190,17 @@ export function calculateCompanyQualification(
   });
 
   // Nível do Cliente
-  let clientLevel: CompanyScoreResult['clientLevel'] = 'Tier 2 (Qualificado)';
-  if (clientScore >= 80) clientLevel = 'Tier 1 (Excelente)';
-  else if (clientScore >= 60) clientLevel = 'Tier 2 (Qualificado)';
-  else if (clientScore >= 40) clientLevel = 'Tier 3 (Neutro)';
-  else clientLevel = 'Desqualificado';
+  let clientLevel: CompanyScoreResult['clientLevel'] = 'Não qualificado';
+  if (clientScore !== null) {
+    if (clientScore >= 80) clientLevel = 'Tier 1 (Excelente)';
+    else if (clientScore >= 60) clientLevel = 'Tier 2 (Qualificado)';
+    else if (clientScore >= 40) clientLevel = 'Tier 3 (Neutro)';
+    else clientLevel = 'Desqualificado';
+  }
 
   // ==========================================
   // 2. CÁLCULO AUDITÁVEL DO SCORE DO SERVIÇO (0 a 100 por serviço)
   // ==========================================
-  // Serviços analisados (usando os serviços cadastrados no Leadion ou catálogo padrão)
   const targetServices = services.length > 0
     ? services
     : [
@@ -173,12 +212,10 @@ export function calculateCompanyQualification(
   const serviceScores: ServiceScoreItem[] = [];
 
   for (const s of targetServices) {
-    // Questões vinculadas ao serviço específico ou globais de serviço
     const sQuestions = activeQuestions.filter((q) => {
       if (q.targetType !== 'service') return false;
       if (!q.serviceId || q.serviceId === 'all') return true;
       if (q.serviceId === s.id) return true;
-      // Match por similaridade de nome se o ID não for idêntico
       const qServName = (q.serviceName || '').toLowerCase();
       const sName = s.name.toLowerCase();
       return (
@@ -191,11 +228,14 @@ export function calculateCompanyQualification(
     let sWeightedEarned = 0;
     let sWeightedMax = 0;
     const sBreakdown: AuditScoreBreakdownItem[] = [];
+    let hasAnsweredServiceQuestion = false;
 
     for (const q of sQuestions) {
-      const answeredVal = customAnswers[q.id] || inferDefaultAnswerForQuestion(q, company);
-      const chosenOption = q.options.find((opt) => opt.value === answeredVal) || q.options[0];
+      const answeredVal = customAnswers[q.id];
+      if (!answeredVal) continue;
+      hasAnsweredServiceQuestion = true;
 
+      const chosenOption = q.options.find((opt) => opt.value === answeredVal) || q.options[0];
       const pointsEarned = chosenOption ? chosenOption.points : 0;
       const maxPoints = Math.max(...q.options.map((o) => o.points), 1);
       const weight = q.weight > 0 ? q.weight : 1;
@@ -222,29 +262,23 @@ export function calculateCompanyQualification(
         weightedEarned,
         weightedMax,
         contributionPercentage: 0,
-        rationale: q.rationale || 'Critério técnico de adequação do serviço.',
+        rationale: q.rationale || 'Aderência da oferta ao perfil do lead.',
       });
     }
 
-    const rawServiceScore = sWeightedMax > 0
-      ? (sWeightedEarned / sWeightedMax) * 100
-      : (s.name.includes('Landing') ? 94 : s.name.includes('Website') ? 71 : 53); // Fallback proporcional do exemplo do usuário
+    const sScore = hasAnsweredServiceQuestion && sWeightedMax > 0
+      ? Math.min(100, Math.max(0, Math.round((sWeightedEarned / sWeightedMax) * 100)))
+      : null;
 
-    const sScore = Math.min(100, Math.max(0, Math.round(rawServiceScore)));
+    let sLevel: ServiceScoreItem['level'] = 'Não qualificado';
+    if (sScore !== null) {
+      if (sScore >= 80) sLevel = 'Excelente Fit';
+      else if (sScore >= 60) sLevel = 'Bom Fit';
+      else if (sScore >= 40) sLevel = 'Moderado';
+      else sLevel = 'Baixo Fit';
+    }
 
-    sBreakdown.forEach((item) => {
-      item.contributionPercentage = sWeightedMax > 0
-        ? Math.round((item.weightedEarned / sWeightedMax) * 100)
-        : 0;
-    });
-
-    let sLevel: ServiceScoreItem['level'] = 'Moderado';
-    if (sScore >= 85) sLevel = 'Excelente Fit';
-    else if (sScore >= 70) sLevel = 'Bom Fit';
-    else if (sScore >= 50) sLevel = 'Moderado';
-    else sLevel = 'Baixo Fit';
-
-    serviceScores.push({
+      serviceScores.push({
       serviceId: s.id,
       serviceName: s.name,
       score: sScore,
@@ -254,24 +288,20 @@ export function calculateCompanyQualification(
     });
   }
 
-  // Ordena serviços pelo maior score decrescente
-  serviceScores.sort((a, b) => b.score - a.score);
+  // Ordena serviços pelo maior score decrescente (ou não qualificados por último)
+  serviceScores.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
 
   // ==========================================
   // 3. MOTOR DE RECOMENDAÇÃO INTELIGENTE
-  // Combinação dos 5 pilares:
-  // - Adequação (Score do serviço)
-  // - Necessidade (Dores e carências detectadas)
-  // - Prioridade (Margem e velocidade de entrega)
-  // - Capacidade (Porte e maturidade financeira do lead)
-  // - Contexto (Nicho, canal e país)
   // ==========================================
   let recommendedService: ServiceRecommendationResult | null = null;
 
-  if (serviceScores.length > 0) {
-    const candidates = serviceScores.map((ss) => {
+  // Só gera recomendação ativa se houver pontuação de serviço real
+  const evaluatedServices = serviceScores.filter((s) => s.score !== null);
+  if (evaluatedServices.length > 0) {
+    const candidates = evaluatedServices.map((ss) => {
       // 1. Adequação (35% peso)
-      const adequacaoScore = ss.score;
+      const adequacaoScore = ss.score ?? 50;
 
       // 2. Necessidade (25% peso): se não tem site e o serviço é LP ou Website, necessidade é máxima
       const hasWebsite = !!company.website && company.website.trim() !== '' && !company.website.includes('pendente');
@@ -397,6 +427,7 @@ export function calculateCompanyQualification(
   return {
     companyId: company.id,
     companyName: company.name,
+    isQualified: hasAnyAnswers,
     clientScore,
     clientLevel,
     clientBreakdown,

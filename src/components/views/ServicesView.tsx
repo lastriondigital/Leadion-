@@ -263,16 +263,27 @@ export const ServicesView: React.FC = () => {
       </div>
 
       {/* Services List */}
-      {filteredServices.length === 0 ? (
+      {services.length === 0 ? (
         <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-zinc-300 space-y-3">
           <div className="w-12 h-12 rounded-full bg-[#635BFF]/10 text-[#635BFF] flex items-center justify-center mx-auto">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-bold text-zinc-800">Nenhum serviço encontrado</h3>
+          <h3 className="text-sm font-bold text-zinc-800">Você ainda não cadastrou serviços.</h3>
           <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-            {searchQuery || statusFilter !== 'all' || selectedCountryFilter !== 'all'
-              ? 'Nenhum serviço atende aos filtros atuais. Tente redefinir a busca.'
-              : 'Cadastre o primeiro serviço para começar a mapear preços e funis de prospecção.'}
+            Cadastre o primeiro serviço comercial para mapear soluções, precificação por país e funis associados.
+          </p>
+          <Button variant="primary" size="sm" onClick={handleCreateNew} icon={<Plus className="w-3.5 h-3.5" />}>
+            Cadastrar Serviço
+          </Button>
+        </div>
+      ) : filteredServices.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-zinc-300 space-y-3">
+          <div className="w-12 h-12 rounded-full bg-[#635BFF]/10 text-[#635BFF] flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-zinc-800">Nenhum serviço atende aos filtros</h3>
+          <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+            Tente redefinir a busca ou alterar os filtros de status e país.
           </p>
           <Button variant="primary" size="sm" onClick={handleCreateNew} icon={<Plus className="w-3.5 h-3.5" />}>
             Cadastrar Serviço

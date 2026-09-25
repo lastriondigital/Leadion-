@@ -30,9 +30,9 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
   conflict,
   onResolve,
 }) => {
-  if (!isOpen || !conflict) return null;
-
   const [fieldChoices, setFieldChoices] = useState<Record<string, 'local' | 'remote'>>({});
+
+  if (!isOpen || !conflict) return null;
 
   const toggleFieldChoice = (field: string, choice: 'local' | 'remote') => {
     setFieldChoices((prev) => ({ ...prev, [field]: choice }));

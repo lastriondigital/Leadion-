@@ -15,11 +15,12 @@ const SUPABASE_LOCAL_STORAGE = {
 };
 
 /**
- * Obtém URL e Anon Key do ambiente (.env) ou da configuração do usuário
+ * Obtém URL e Publishable Key / Anon Key do ambiente (.env) ou da configuração do usuário
  */
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
-  let url = ((import.meta as any).env?.VITE_SUPABASE_URL as string) || '';
-  let anonKey = ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || '';
+  let url = ((import.meta as any).env?.VITE_SUPABASE_URL as string) || 'https://sadhhykrhczkyrzwdlyv.supabase.co';
+  let anonKey = ((import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string) || 
+                ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || '';
 
   if (typeof window !== 'undefined') {
     const userUrl = localStorage.getItem(SUPABASE_LOCAL_STORAGE.URL);
@@ -381,16 +382,76 @@ CREATE TABLE IF NOT EXISTS public.leadion_prospect_actions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.leadion_objections (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  description TEXT,
+  icon TEXT,
+  suggested_action TEXT,
+  color TEXT,
+  status TEXT DEFAULT 'active',
+  sequences JSONB DEFAULT '[]'::jsonb,
+  user_id UUID,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.leadion_qualifications (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  user_id UUID,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.leadion_cloud_backups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   device_name TEXT,
   payload JSONB NOT NULL,
   size_bytes BIGINT,
+  user_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Ativa Row Level Security (RLS) se desejado
+-- Ativa Row Level Security (RLS) e Políticas de Acesso
 ALTER TABLE public.leadion_companies ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Permitir acesso autenticado no Leadion" ON public.leadion_companies FOR ALL USING (auth.role() = 'authenticated');
+ALTER TABLE public.leadion_scripts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leadion_funnels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leadion_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leadion_prospect_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leadion_objections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leadion_qualifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leadion_cloud_backups ENABLE ROW LEVEL SECURITY;
+
+-- Políticas universais para aplicação LEADION (Permite leitura/escrita para usuários autenticados e anon)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_companies_policy') THEN
+    CREATE POLICY leadion_companies_policy ON public.leadion_companies FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_scripts_policy') THEN
+    CREATE POLICY leadion_scripts_policy ON public.leadion_scripts FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_funnels_policy') THEN
+    CREATE POLICY leadion_funnels_policy ON public.leadion_funnels FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_services_policy') THEN
+    CREATE POLICY leadion_services_policy ON public.leadion_services FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_actions_policy') THEN
+    CREATE POLICY leadion_actions_policy ON public.leadion_prospect_actions FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_objections_policy') THEN
+    CREATE POLICY leadion_objections_policy ON public.leadion_objections FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_qualifications_policy') THEN
+    CREATE POLICY leadion_qualifications_policy ON public.leadion_qualifications FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'leadion_backups_policy') THEN
+    CREATE POLICY leadion_backups_policy ON public.leadion_cloud_backups FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 `;

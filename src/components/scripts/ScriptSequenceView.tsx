@@ -130,11 +130,15 @@ export const ScriptSequenceView: React.FC<ScriptSequenceViewProps> = ({
             onChange={(e) => setSelectedCompanyId(e.target.value)}
             className="text-xs px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-medium focus:outline-none"
           >
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.country})
-              </option>
-            ))}
+            {companies.length === 0 ? (
+              <option value="">Nenhuma empresa cadastrada</option>
+            ) : (
+              companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.country || 'Sem país'})
+                </option>
+              ))
+            )}
           </select>
         </div>
 

@@ -49,8 +49,8 @@ export interface AuditScoreBreakdownItem {
 export interface ServiceScoreItem {
   serviceId: string;
   serviceName: string;
-  score: number; // 0 a 100
-  level: 'Excelente Fit' | 'Bom Fit' | 'Moderado' | 'Baixo Fit';
+  score: number | null; // 0 a 100 ou null se ainda não qualificado
+  level: 'Excelente Fit' | 'Bom Fit' | 'Moderado' | 'Baixo Fit' | 'Não qualificado';
   breakdown: AuditScoreBreakdownItem[];
   questionsCount: number;
 }
@@ -78,10 +78,11 @@ export interface ServiceRecommendationResult {
 export interface CompanyScoreResult {
   companyId: string;
   companyName: string;
+  isQualified: boolean; // Indica se o operador já qualificou manualmente
   
-  // 1. SCORE DO CLIENTE (0 a 100)
-  clientScore: number;
-  clientLevel: 'Tier 1 (Excelente)' | 'Tier 2 (Qualificado)' | 'Tier 3 (Neutro)' | 'Desqualificado';
+  // 1. SCORE DO CLIENTE (0 a 100 ou null se não qualificado)
+  clientScore: number | null;
+  clientLevel: 'Tier 1 (Excelente)' | 'Tier 2 (Qualificado)' | 'Tier 3 (Neutro)' | 'Desqualificado' | 'Não qualificado';
   clientBreakdown: AuditScoreBreakdownItem[];
 
   // 2. SCORE DO SERVIÇO (0 a 100 por serviço)

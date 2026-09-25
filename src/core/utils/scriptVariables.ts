@@ -12,69 +12,105 @@ export interface ScriptVariableMeta {
 export const SCRIPT_AVAILABLE_VARIABLES: ScriptVariableMeta[] = [
   {
     tag: '{{nome}}',
-    label: 'Nome do Decisor',
-    description: 'Primeiro nome do decisor ou responsável principal',
-    example: 'João',
+    label: 'Nome do Decisor/Contato',
+    description: 'Primeiro nome ou nome preferido do contato principal',
+    example: 'Ana',
+  },
+  {
+    tag: '{{cargo}}',
+    label: 'Cargo do Contato',
+    description: 'Função do decisor (ex: Diretora Médica, Sócio)',
+    example: 'Diretora',
   },
   {
     tag: '{{empresa}}',
     label: 'Nome da Empresa',
-    description: 'Razão social ou nome fantasia da empresa',
+    description: 'Nome fantasia ou razão social da empresa',
     example: 'Clínica Aurora',
   },
   {
     tag: '{{cidade}}',
     label: 'Cidade',
-    description: 'Cidade sede da empresa',
+    description: 'Cidade da empresa',
     example: 'Maputo',
   },
   {
     tag: '{{pais}}',
     label: 'País',
-    description: 'País da empresa para regionalização de tom',
+    description: 'País para regionalização de tom e contexto',
     example: 'Moçambique',
   },
   {
     tag: '{{servico}}',
     label: 'Serviço',
-    description: 'Nome do serviço comercial proposto',
+    description: 'Nome do serviço comercial selecionado',
     example: 'Landing Page de Alta Conversão',
   },
   {
     tag: '{{preco}}',
     label: 'Preço',
-    description: 'Preço correspondente ao país da empresa',
+    description: 'Preço configurado para a moeda e país da empresa',
     example: '10.000 MT',
   },
   {
     tag: '{{moeda}}',
     label: 'Moeda',
-    description: 'Moeda associada à precificação do país',
-    example: 'MZN',
+    description: 'Código da moeda (MT, EUR, BRL, etc.)',
+    example: 'MT',
   },
   {
-    tag: '{{responsavel}}',
-    label: 'Responsável Leadion',
-    description: 'Nome completo do consultor ou SDR do Leadion',
-    example: 'Manuel Domingos',
+    tag: '{{problema}}',
+    label: 'Problema Mapeado',
+    description: 'Problema ou dor identificada na empresa',
+    example: 'não possui website rápido para receber clientes',
   },
   {
-    tag: '{{site}}',
-    label: 'Site da Empresa',
-    description: 'Endereço web ou domínio da empresa',
-    example: 'https://clinicaaurora.co.mz',
+    tag: '{{necessidade}}',
+    label: 'Necessidade',
+    description: 'Necessidade percebida pelo operador comercial',
+    example: 'captar pacientes particulares pelo Google',
+  },
+  {
+    tag: '{{objetivo}}',
+    label: 'Objetivo da Empresa',
+    description: 'Meta principal do lead',
+    example: 'aumentar agendamentos diretos no WhatsApp',
+  },
+  {
+    tag: '{{dor}}',
+    label: 'Dor Principal',
+    description: 'Principal gargalo ou prejuízo atual',
+    example: 'perda de pacientes para concorrentes locais',
+  },
+  {
+    tag: '{{ponto_positivo}}',
+    label: 'Ponto Positivo',
+    description: 'Destaque favorável mapeado (ex: Instagram ativo)',
+    example: 'perfil de Instagram ativo e com boa audiência',
+  },
+  {
+    tag: '{{ponto_negativo}}',
+    label: 'Ponto Negativo',
+    description: 'Gargalo ou ponto de melhoria identificado',
+    example: 'link da bio direciona apenas para um link genérico',
+  },
+  {
+    tag: '{{website}}',
+    label: 'Website / Domínio',
+    description: 'Endereço web ou link institucional',
+    example: 'https://exemplo.co.mz',
   },
   {
     tag: '{{instagram}}',
     label: 'Instagram',
     description: 'Perfil de Instagram da empresa',
-    example: '@clinicaauroramaputo',
+    example: '@clinicaaurora',
   },
   {
-    tag: '{{problema}}',
-    label: 'Problema / Dor',
-    description: 'Dor comercial mapeada ou oportunidade identificada',
-    example: 'ausência de página rápida para conversão no WhatsApp',
+    tag: '{{responsavel}}',
+    label: 'Responsável Comercial',
+    description: 'Nome do operador ou consultor Leadion',
+    example: 'Manuel Domingos',
   },
 ];
 
@@ -88,7 +124,10 @@ export function extractScriptVariables(content: string): string[] {
 }
 
 /**
- * Substitui as variáveis de um template com dados reais da empresa e serviço
+ * Substitui as variáveis de um template com dados reais da empresa e serviço.
+ * REGRA FUNDAMENTAL: Se uma informação não existir, NÃO inventar!
+ * Exemplo: se não há nome do decisor cadastrado, substitui saudações
+ * como "Olá {{nome}}, tudo bem?" por "Olá, tudo bem?" de forma natural.
  */
 export function replaceScriptVariables(
   template: string,
@@ -98,23 +137,33 @@ export function replaceScriptVariables(
 ): string {
   if (!template) return '';
 
-  // Decisor / contato
-  const primaryContact = company?.responsibles?.find((r) => r.isPrimary) || company?.responsibles?.[0];
-  const rawContactName = primaryContact?.name || company?.additionalContacts?.[0]?.name || 'Decisor(a)';
-  // Extrai apenas o primeiro nome (ex: "Dra. Samira Patel" -> "Samira" ou "Dra. Samira")
-  const firstName = rawContactName.replace(/^(Dr\.|Dra\.|Sr\.|Sra\.)\s*/i, '').split(' ')[0] || rawContactName;
+  // 1. Contato e Decisor Real
+  // Não assume que o primeiro é decisor se houver um marcado explicitamente com isDecisionMaker
+  const decisionMaker = company?.responsibles?.find((r) => r.isDecisionMaker) ||
+    company?.additionalContacts?.find((c) => c.isDecisionMaker) ||
+    company?.responsibles?.find((r) => r.isPrimary) ||
+    company?.responsibles?.[0];
 
-  const companyName = company?.name || 'Clínica Aurora';
-  const city = company?.city || (company?.location?.split('·')[0]?.trim()) || 'Maputo';
-  const country = company?.country || 'Moçambique';
-
-  // Serviço & Preço
-  const serviceName = service?.name || (company?.associatedServices?.[0] ? 'Landing Page de Alta Conversão' : 'Consultoria Leadion');
+  const rawContactName = decisionMaker?.preferredName || decisionMaker?.name || '';
+  const hasRealContactName = rawContactName.trim().length > 0;
   
-  let formattedPrice = 'Sob Consulta';
-  let currencyCode = 'MZN';
+  // Extrai primeiro nome se houver nome real
+  const firstName = hasRealContactName 
+    ? rawContactName.replace(/^(Dr\.|Dra\.|Sr\.|Sra\.|Prof\.|Eng\.)\s*/i, '').split(' ')[0] || rawContactName
+    : '';
 
-  if (service && company) {
+  const role = decisionMaker?.role || '';
+  const companyName = company?.name || '';
+  const city = company?.city || (company?.location?.split('·')[0]?.trim()) || '';
+  const country = company?.country || '';
+
+  // 2. Serviço & Preço correspondente ao país real da empresa
+  const serviceName = service?.name || '';
+  
+  let formattedPrice = '';
+  let currencyCode = '';
+
+  if (service && company?.country) {
     const pricing = getServicePriceForCompany(service, company.country);
     if (pricing) {
       formattedPrice = formatServiceCurrency(pricing.myPrice, pricing.currency, pricing.currencySymbol);
@@ -122,26 +171,38 @@ export function replaceScriptVariables(
     }
   } else if (service && service.countryPrices && service.countryPrices.length > 0) {
     const firstPrice = service.countryPrices[0];
-    formattedPrice = `${firstPrice.currency} ${firstPrice.myPrice.toLocaleString()}`;
+    formattedPrice = `${firstPrice.currencySymbol || firstPrice.currency} ${firstPrice.myPrice.toLocaleString()}`;
     currencyCode = firstPrice.currency;
-  } else if (country === 'Moçambique') {
-    formattedPrice = '10.000 MT';
-    currencyCode = 'MZN';
-  } else if (country === 'Portugal') {
-    formattedPrice = '€137';
-    currencyCode = 'EUR';
-  } else {
-    formattedPrice = 'R$ 597';
-    currencyCode = 'BRL';
   }
 
-  const website = company?.website || 'https://clinicaaurora.co.mz';
-  const instagram = company?.socials?.instagram || '@clinicaaurora';
-  const problem = company?.commercialNotes || 'ausência de página rápida para conversão direta no WhatsApp';
+  // 3. Redes e Presença Digital Real
+  const website = company?.website || '';
+  const instagram = company?.socials?.instagram || '';
+
+  // 4. Contexto Comercial, Dores e Pontos
+  const problem = company?.commercialContext?.problem || company?.commercialNotes || '';
+  const need = company?.commercialContext?.perceivedNeed || '';
+  const goal = company?.commercialContext?.companyGoal || '';
+  const pain = company?.commercialContext?.mainPain || '';
+  const positivePoint = company?.positivePoints?.[0] || '';
+  const negativePoint = company?.negativePoints?.[0] || '';
 
   let result = template;
-  result = result.replace(/\{\{nome\}\}/gi, firstName);
-  result = result.replace(/\{\{empresa\}\}/gi, companyName);
+
+  // Tratamento especial para saudação caso {{nome}} não exista
+  if (!hasRealContactName) {
+    result = result.replace(/Olá\s+\{\{nome\}\},\s*/gi, 'Olá, ');
+    result = result.replace(/Olá\s+\{\{nome\}\}\s*/gi, 'Olá! ');
+    result = result.replace(/Oi\s+\{\{nome\}\},\s*/gi, 'Oi, ');
+    result = result.replace(/Oi\s+\{\{nome\}\}\s*/gi, 'Oi! ');
+    result = result.replace(/Prezado\(a\)\s+\{\{nome\}\},\s*/gi, 'Olá, ');
+    result = result.replace(/\{\{nome\}\}/gi, '');
+  } else {
+    result = result.replace(/\{\{nome\}\}/gi, firstName);
+  }
+
+  result = result.replace(/\{\{cargo\}\}/gi, role);
+  result = result.replace(/\{\{empresa\}\}/gi, companyName || 'sua empresa');
   result = result.replace(/\{\{cidade\}\}/gi, city);
   result = result.replace(/\{\{pais\}\}/gi, country);
   result = result.replace(/\{\{servico\}\}/gi, serviceName);
@@ -149,8 +210,17 @@ export function replaceScriptVariables(
   result = result.replace(/\{\{moeda\}\}/gi, currencyCode);
   result = result.replace(/\{\{responsavel\}\}/gi, operatorName);
   result = result.replace(/\{\{site\}\}/gi, website);
+  result = result.replace(/\{\{website\}\}/gi, website);
   result = result.replace(/\{\{instagram\}\}/gi, instagram);
   result = result.replace(/\{\{problema\}\}/gi, problem);
+  result = result.replace(/\{\{necessidade\}\}/gi, need);
+  result = result.replace(/\{\{objetivo\}\}/gi, goal);
+  result = result.replace(/\{\{dor\}\}/gi, pain || problem);
+  result = result.replace(/\{\{ponto_positivo\}\}/gi, positivePoint);
+  result = result.replace(/\{\{ponto_negativo\}\}/gi, negativePoint);
+
+  // Limpa espaços duplos residuais de substituições vazias
+  result = result.replace(/\s{2,}/g, ' ').trim();
 
   return result;
 }
