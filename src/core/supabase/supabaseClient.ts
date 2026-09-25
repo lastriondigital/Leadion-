@@ -15,22 +15,228 @@ const SUPABASE_LOCAL_STORAGE = {
 };
 
 /**
- * Obtém URL e Publishable Key / Anon Key do ambiente (.env) ou da configuração do usuário
+ * Sanitiza URL do Supabase removendo aspas, prefixos duplicados e barras finais
  */
-export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
-  let url = ((import.meta as any).env?.VITE_SUPABASE_URL as string) || 'https://sadhhykrhczkyrzwdlyv.supabase.co';
-  let anonKey = ((import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string) || 
-                ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || '';
+export function sanitizeSupabaseUrl(rawUrl?: string | null): string {
+  if (!rawUrl) return '';
+  let url = String(rawUrl).trim();
+  url = url.replace(/^["']|["']$/g, '').trim();
+  url = url.replace(/^(export\s+)?VITE_SUPABASE_URL\s*[:= ]\s*/i, '').trim();
+  url = url.replace(/^(export\s+)?SUPABASE_URL\s*[:= ]\s*/i, '').trim();
+  url = url.replace(/^["']|["']$/g, '').trim();
+  return url.replace(/\/+$/, '');
+}
 
-  if (typeof window !== 'undefined') {
-    const userUrl = localStorage.getItem(SUPABASE_LOCAL_STORAGE.URL);
-    const userKey = localStorage.getItem(SUPABASE_LOCAL_STORAGE.ANON_KEY);
-    if (userUrl) url = userUrl;
-    if (userKey) anonKey = userKey;
+/**
+ * Sanitiza a Publishable Key / Anon Key do Supabase:
+ * Remove aspas, espaços, e prefixos acidentais como "VITE_SUPABASE_PUBLISHABLE_KEY "
+ */
+export function sanitizeSupabaseKey(rawKey?: string | null): string {
+  if (!rawKey) return '';
+  let key = String(rawKey).trim();
+  key = key.replace(/^["']|["']$/g, '').trim();
+  key = key.replace(/^(export\s+)?VITE_SUPABASE_PUBLISHABLE_KEY\s*[:= ]\s*/i, '').trim();
+  key = key.replace(/^(export\s+)?VITE_SUPABASE_ANON_KEY\s*[:= ]\s*/i, '').trim();
+  key = key.replace(/^(export\s+)?SUPABASE_KEY\s*[:= ]\s*/i, '').trim();
+  key = key.replace(/^(export\s+)?SUPABASE_ANON_KEY\s*[:= ]\s*/i, '').trim();
+  return key.replace(/^["']|["']$/g, '').trim();
+}
+
+/**
+ * Valida o formato da URL do Supabase
+ */
+export function isValidSupabaseUrlFormat(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.hostname.length > 3;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Valida o formato da Publishable Key / Anon Key do Supabase:
+ * Suporta o formato moderno 'sb_publishable_...' e o formato legado JWT 'eyJ...'
+ */
+export function isValidSupabaseKeyFormat(key: string): boolean {
+  if (!key || typeof key !== 'string') return false;
+  const trimmed = key.trim();
+  if (trimmed.startsWith('sb_publishable_') && trimmed.length >= 25) {
+    return true;
+  }
+  if (trimmed.startsWith('eyJ') && trimmed.split('.').length === 3) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Mascara a chave com segurança para exibição e logs sem vazar a credencial
+ * Exemplo: sb_publishable_...9iR ou eyJ...abc
+ */
+export function maskApiKey(key: string): string {
+  if (!key) return '(não configurada)';
+  const cleaned = sanitizeSupabaseKey(key);
+  if (cleaned.length <= 12) return '***';
+  if (cleaned.startsWith('sb_publishable_')) {
+    return `sb_publishable_...${cleaned.slice(-4)}`;
+  }
+  return `${cleaned.slice(0, 10)}...${cleaned.slice(-4)}`;
+}
+
+/**
+ * Mascara a URL para exibição
+ */
+export function maskUrl(url: string): string {
+  if (!url) return '(não configurada)';
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.hostname}`;
+  } catch {
+    return url;
+  }
+}
+
+export interface SupabaseConfigValidation {
+  isValid: boolean;
+  error: string | null;
+  missingVars: string[];
+}
+
+/**
+ * Validação central das variáveis de ambiente exigidas
+ */
+export function getSupabaseValidationStatus(): SupabaseConfigValidation {
+  const envUrl = sanitizeSupabaseUrl((import.meta as any).env?.VITE_SUPABASE_URL);
+  const envKey = sanitizeSupabaseKey(
+    (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    (import.meta as any).env?.VITE_SUPABASE_ANON_KEY
+  );
+
+  const missing: string[] = [];
+  if (!envUrl) missing.push('VITE_SUPABASE_URL');
+  if (!envKey) missing.push('VITE_SUPABASE_PUBLISHABLE_KEY');
+
+  if (missing.length > 0) {
+    return {
+      isValid: false,
+      error: `Configuração do Supabase ausente. Verifique: ${missing.join(' e ')}`,
+      missingVars: missing,
+    };
   }
 
-  const isConfigured = Boolean(url && url.startsWith('http') && anonKey && anonKey.length > 10);
-  return { url, anonKey, isConfigured };
+  if (!isValidSupabaseUrlFormat(envUrl)) {
+    return {
+      isValid: false,
+      error: 'Formato inválido de VITE_SUPABASE_URL. Deve ser uma URL válida (ex: https://xyz.supabase.co).',
+      missingVars: [],
+    };
+  }
+
+  if (!isValidSupabaseKeyFormat(envKey)) {
+    return {
+      isValid: false,
+      error: 'Formato inválido de VITE_SUPABASE_PUBLISHABLE_KEY. Deve iniciar com "sb_publishable_" ou ser um token JWT válido.',
+      missingVars: [],
+    };
+  }
+
+  return {
+    isValid: true,
+    error: null,
+    missingVars: [],
+  };
+}
+
+/**
+ * Obtém URL e Publishable Key oficiais e sanitizadas
+ */
+export function getSupabaseCredentials(): {
+  url: string;
+  anonKey: string;
+  publishableKey: string;
+  isConfigured: boolean;
+  isValidFormat: boolean;
+  keyType: 'publishable' | 'legacy_jwt' | 'invalid' | 'none';
+  maskedKey: string;
+  validationError: string | null;
+} {
+  // 1. Lê prioritariamente do ambiente de execução Vite (.env)
+  const rawEnvUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+  const rawEnvKey = (
+    (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    (import.meta as any).env?.VITE_SUPABASE_ANON_KEY
+  ) as string | undefined;
+
+  let url = sanitizeSupabaseUrl(rawEnvUrl);
+  let key = sanitizeSupabaseKey(rawEnvKey);
+
+  // 2. Limpa cache corrompido ou antigo do localStorage para evitar interferência
+  if (typeof window !== 'undefined') {
+    try {
+      const cachedKey = localStorage.getItem(SUPABASE_LOCAL_STORAGE.ANON_KEY);
+      if (cachedKey) {
+        const cleanedCachedKey = sanitizeSupabaseKey(cachedKey);
+        // Se a chave no localStorage estiver mal formatada ou se houver chave válida no .env, remove a do localStorage
+        if (!isValidSupabaseKeyFormat(cleanedCachedKey) || (key && isValidSupabaseKeyFormat(key))) {
+          localStorage.removeItem(SUPABASE_LOCAL_STORAGE.ANON_KEY);
+        } else if (!key && isValidSupabaseKeyFormat(cleanedCachedKey)) {
+          key = cleanedCachedKey;
+        }
+      }
+
+      const cachedUrl = localStorage.getItem(SUPABASE_LOCAL_STORAGE.URL);
+      if (cachedUrl) {
+        const cleanedCachedUrl = sanitizeSupabaseUrl(cachedUrl);
+        if (!isValidSupabaseUrlFormat(cleanedCachedUrl) || (url && isValidSupabaseUrlFormat(url))) {
+          localStorage.removeItem(SUPABASE_LOCAL_STORAGE.URL);
+        } else if (!url && isValidSupabaseUrlFormat(cleanedCachedUrl)) {
+          url = cleanedCachedUrl;
+        }
+      }
+    } catch {
+      // Ignora erro de acesso a localStorage
+    }
+  }
+
+  const hasUrl = Boolean(url && isValidSupabaseUrlFormat(url));
+  const hasKey = Boolean(key && isValidSupabaseKeyFormat(key));
+  const isConfigured = hasUrl && hasKey;
+
+  let keyType: 'publishable' | 'legacy_jwt' | 'invalid' | 'none' = 'none';
+  if (!key) {
+    keyType = 'none';
+  } else if (key.startsWith('sb_publishable_')) {
+    keyType = 'publishable';
+  } else if (key.startsWith('eyJ')) {
+    keyType = 'legacy_jwt';
+  } else {
+    keyType = 'invalid';
+  }
+
+  let validationError: string | null = null;
+  if (!url || !key) {
+    const missing: string[] = [];
+    if (!url) missing.push('VITE_SUPABASE_URL');
+    if (!key) missing.push('VITE_SUPABASE_PUBLISHABLE_KEY');
+    validationError = `Configuração do Supabase ausente. Verifique: ${missing.join(' e ')}`;
+  } else if (!hasUrl) {
+    validationError = 'VITE_SUPABASE_URL contém uma URL com formato inválido.';
+  } else if (!hasKey) {
+    validationError = 'VITE_SUPABASE_PUBLISHABLE_KEY possui formato inválido.';
+  }
+
+  return {
+    url,
+    anonKey: key,
+    publishableKey: key,
+    isConfigured,
+    isValidFormat: isConfigured,
+    keyType,
+    maskedKey: maskApiKey(key),
+    validationError,
+  };
 }
 
 /**
@@ -38,10 +244,14 @@ export function getSupabaseCredentials(): { url: string; anonKey: string; isConf
  */
 export function saveSupabaseCredentials(url: string, anonKey: string): void {
   if (typeof window === 'undefined') return;
-  if (url) localStorage.setItem(SUPABASE_LOCAL_STORAGE.URL, url.trim());
+
+  const cleanUrl = sanitizeSupabaseUrl(url);
+  const cleanKey = sanitizeSupabaseKey(anonKey);
+
+  if (cleanUrl) localStorage.setItem(SUPABASE_LOCAL_STORAGE.URL, cleanUrl);
   else localStorage.removeItem(SUPABASE_LOCAL_STORAGE.URL);
 
-  if (anonKey) localStorage.setItem(SUPABASE_LOCAL_STORAGE.ANON_KEY, anonKey.trim());
+  if (cleanKey) localStorage.setItem(SUPABASE_LOCAL_STORAGE.ANON_KEY, cleanKey);
   else localStorage.removeItem(SUPABASE_LOCAL_STORAGE.ANON_KEY);
 
   // Reinicializa cliente
@@ -51,16 +261,22 @@ export function saveSupabaseCredentials(url: string, anonKey: string): void {
 let supabaseClientInstance: SupabaseClient | null = null;
 
 /**
- * Obtém ou inicializa o cliente Supabase oficial
+ * Obtém ou inicializa o cliente Supabase oficial centralizado
+ * UI -> Repository / Service -> Supabase Client -> Supabase
  */
 export function getSupabaseClient(): SupabaseClient | null {
   if (supabaseClientInstance) return supabaseClientInstance;
 
-  const { url, anonKey, isConfigured } = getSupabaseCredentials();
-  if (!isConfigured) return null;
+  const { url, publishableKey, isConfigured, validationError } = getSupabaseCredentials();
+  if (!isConfigured) {
+    if (validationError) {
+      console.warn('[Leadion Supabase]', validationError);
+    }
+    return null;
+  }
 
   try {
-    supabaseClientInstance = createClient(url, anonKey, {
+    supabaseClientInstance = createClient(url, publishableKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -73,6 +289,118 @@ export function getSupabaseClient(): SupabaseClient | null {
   }
 }
 
+export interface SupabaseDiagnosticResult {
+  urlPresent: boolean;
+  urlValidFormat: boolean;
+  urlMasked: string;
+  keyPresent: boolean;
+  keyValidFormat: boolean;
+  keyMasked: string;
+  keyType: 'publishable' | 'legacy_jwt' | 'invalid' | 'none';
+  clientInitialized: boolean;
+  sessionAvailable: boolean;
+  sessionUserId?: string | null;
+  status: 'healthy' | 'misconfigured' | 'invalid_key' | 'offline_only';
+  message: string;
+  latencyMs?: number;
+}
+
+/**
+ * Função de diagnóstico interno oficial do Supabase:
+ * Verifica URL, Publishable Key, formato, inicialização e sessão
+ * NUNCA expõe a chave completa no console
+ */
+export async function runSupabaseDiagnostics(): Promise<SupabaseDiagnosticResult> {
+  const creds = getSupabaseCredentials();
+
+  const urlPresent = Boolean(creds.url);
+  const urlValidFormat = isValidSupabaseUrlFormat(creds.url);
+  const keyPresent = Boolean(creds.publishableKey);
+  const keyValidFormat = isValidSupabaseKeyFormat(creds.publishableKey);
+  const keyMasked = maskApiKey(creds.publishableKey);
+  const urlMasked = maskUrl(creds.url);
+
+  if (!urlPresent || !keyPresent) {
+    console.info(`[Supabase Diagnostic] Configuração incompleta | Key: ${keyMasked} | URL: ${urlMasked}`);
+    return {
+      urlPresent,
+      urlValidFormat,
+      urlMasked,
+      keyPresent,
+      keyValidFormat,
+      keyMasked,
+      keyType: creds.keyType,
+      clientInitialized: false,
+      sessionAvailable: false,
+      status: 'misconfigured',
+      message: creds.validationError || 'Configuração do Supabase ausente.',
+    };
+  }
+
+  if (!keyValidFormat) {
+    console.warn(`[Supabase Diagnostic] Chave em formato incompatível | Key: ${keyMasked}`);
+    return {
+      urlPresent,
+      urlValidFormat,
+      urlMasked,
+      keyPresent,
+      keyValidFormat: false,
+      keyMasked,
+      keyType: creds.keyType,
+      clientInitialized: false,
+      sessionAvailable: false,
+      status: 'invalid_key',
+      message: 'Formato da Publishable Key incorreto.',
+    };
+  }
+
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      urlPresent,
+      urlValidFormat,
+      urlMasked,
+      keyPresent,
+      keyValidFormat,
+      keyMasked,
+      keyType: creds.keyType,
+      clientInitialized: false,
+      sessionAvailable: false,
+      status: 'misconfigured',
+      message: 'Não foi possível inicializar o cliente Supabase.',
+    };
+  }
+
+  let sessionAvailable = false;
+  let sessionUserId: string | null = null;
+  try {
+    const { data: { session } } = await client.auth.getSession();
+    sessionAvailable = Boolean(session);
+    sessionUserId = session?.user?.id || null;
+  } catch {}
+
+  const conn = await testSupabaseConnection();
+  console.info(
+    `[Supabase Diagnostic] Key configured: true (${creds.keyType}) | Key: ${keyMasked} | Client: ready | Ping: ${conn.success ? 'OK' : 'Falha'}`
+  );
+
+  return {
+    urlPresent,
+    urlValidFormat,
+    urlMasked,
+    keyPresent,
+    keyValidFormat,
+    keyMasked,
+    keyType: creds.keyType,
+    clientInitialized: true,
+    sessionAvailable,
+    sessionUserId,
+    status: conn.success ? 'healthy' : 'invalid_key',
+    message: conn.message,
+    latencyMs: conn.latencyMs,
+  };
+}
+
 /**
  * Testa conectividade real com a instância do Supabase
  */
@@ -82,14 +410,13 @@ export async function testSupabaseConnection(): Promise<{
   message: string;
   isSimulated?: boolean;
 }> {
-  const { url, anonKey, isConfigured } = getSupabaseCredentials();
+  const { url, publishableKey, isConfigured, validationError } = getSupabaseCredentials();
 
   if (!isConfigured) {
     return {
-      success: true,
-      isSimulated: true,
-      latencyMs: 14,
-      message: 'Modo Sandbox Local Ativo (Credenciais Supabase não configuradas no .env. Funcionalidades offline operando 100%).',
+      success: false,
+      latencyMs: 0,
+      message: validationError || 'Configuração do Supabase ausente. Verifique: VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY',
     };
   }
 
@@ -97,18 +424,25 @@ export async function testSupabaseConnection(): Promise<{
   if (!client) {
     return {
       success: false,
-      message: 'Falha ao criar cliente Supabase. Verifique a sintaxe da URL e Anon Key.',
+      message: 'Falha ao criar cliente Supabase. Verifique a sintaxe da URL e Publishable Key.',
     };
   }
 
   const start = performance.now();
   try {
-    // Executa ping simples de autenticação/banco
+    // Executa ping simples na tabela oficial de empresas
     const { error } = await client.from('companies').select('id').limit(1);
     const latencyMs = Math.round(performance.now() - start);
 
-    if (error && error.code !== 'PGRST116' && !error.message?.includes('does not exist')) {
-      // Se a tabela ainda não existir, o Supabase responde com mensagem de tabela inexistente, mas a conexão foi bem-sucedida!
+    if (error) {
+      if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+        return {
+          success: true,
+          latencyMs,
+          message: `Conexão bem-sucedida com ${new URL(url).hostname} (${latencyMs}ms)`,
+        };
+      }
+
       return {
         success: false,
         latencyMs,
@@ -128,6 +462,7 @@ export async function testSupabaseConnection(): Promise<{
     };
   }
 }
+
 
 export interface CloudBackupMetadata {
   id: string;
@@ -351,11 +686,27 @@ CREATE TABLE IF NOT EXISTS public.leadion_funnels (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
+  channel TEXT DEFAULT 'whatsapp',
+  objective TEXT DEFAULT 'primeiro_contacto',
   is_default BOOLEAN DEFAULT false,
   stages JSONB DEFAULT '[]'::jsonb,
+  sequences JSONB DEFAULT '[]'::jsonb,
+  flow_nodes JSONB DEFAULT '[]'::jsonb,
+  flow_edges JSONB DEFAULT '[]'::jsonb,
+  flow_viewport JSONB DEFAULT '{"x":0,"y":0,"zoom":1}'::jsonb,
+  funnel_scripts JSONB DEFAULT '[]'::jsonb,
   version INTEGER DEFAULT 1,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS channel TEXT DEFAULT 'whatsapp';
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS objective TEXT DEFAULT 'primeiro_contacto';
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS sequences JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS flow_nodes JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS flow_edges JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS flow_viewport JSONB DEFAULT '{"x":0,"y":0,"zoom":1}'::jsonb;
+ALTER TABLE public.leadion_funnels ADD COLUMN IF NOT EXISTS funnel_scripts JSONB DEFAULT '[]'::jsonb;
+
 
 CREATE TABLE IF NOT EXISTS public.leadion_services (
   id TEXT PRIMARY KEY,

@@ -18,6 +18,7 @@ import {
   FunnelStage, 
   StageTransitionPayload 
 } from '../core/types/funnel';
+import { duplicateFunnelWithCleanGraph } from '../core/funnel/flowGraphEngine';
 import { INITIAL_LEADS, INITIAL_COMPANIES, INITIAL_OBJECTIONS, INITIAL_SERVICES, INITIAL_SCRIPTS } from '../core/data/initialData';
 import { INITIAL_SCRIPTS_DATA } from '../core/data/initialScriptsData';
 import { INITIAL_SERVICES_DATA } from '../core/data/initialServices';
@@ -56,6 +57,8 @@ import { idbGet, idbPut, idbBulkPut, idbDelete, idbClear, idbGetAll, STORES } fr
 import { connectivityEngine } from '../core/storage/connectivityEngine';
 import { 
   getSupabaseClient,
+  getSupabaseCredentials,
+  runSupabaseDiagnostics,
   testSupabaseConnection, 
   uploadCloudBackup, 
   listCloudBackups, 
@@ -1075,7 +1078,14 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem('leadion-funnels-v1');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const clean = parsed.filter((f) => f.id !== 'funnel-b2b-default' || (f.sequences && f.sequences.length > 0));
+            if (clean.length !== parsed.length) {
+              localStorage.setItem('leadion-funnels-v1', JSON.stringify(clean));
+            }
+            return clean;
+          }
         } catch {
           // fallback
         }
@@ -1092,7 +1102,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const [activeFunnelId, setActiveFunnelId] = useState<string>(() => {
-    return INITIAL_FUNNELS_DATA[0]?.id || 'funnel-b2b-default';
+    return '';
   });
 
   // Modais de Funil
@@ -2780,6 +2790,12 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   const addFunnel = useCallback((funnelData: Omit<FunnelEntity, 'id' | 'createdAt' | 'updatedAt' | 'version'>): FunnelEntity => {
     const nowIso = new Date().toISOString();
     const newFunnel: FunnelEntity = {
+      stages: [],
+      sequences: [],
+      flowNodes: [],
+      flowEdges: [],
+      flowViewport: { x: 40, y: 40, zoom: 1 },
+      funnelScripts: [],
       ...funnelData,
       id: `funnel-${Date.now()}`,
       createdAt: nowIso,
@@ -2806,7 +2822,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     showToast({
       type: 'success',
       title: 'Funil Criado',
-      message: `Funil "${newFunnel.name}" criado com ${newFunnel.stages.length} etapas estruturadas.`,
+      message: `Funil "${newFunnel.name}" criado com sucesso.`,
     });
     return newFunnel;
   }, [funnels, saveFunnels, showToast, currentUser]);
@@ -2856,42 +2872,27 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     const target = funnels.find((f) => f.id === id);
     if (!target) return null;
 
-    const nowIso = new Date().toISOString();
-    const duplicated: FunnelEntity = {
-      ...JSON.parse(JSON.stringify(target)),
-      id: `funnel-${Date.now()}`,
-      name: `${target.name} (Cópia)`,
-      code: `${target.code}-CPY`,
-      isDefault: false,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      version: 1,
-      stages: target.stages.map((stg) => ({
-        ...stg,
-        id: `stg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      })),
-    };
+    const duplicated = duplicateFunnelWithCleanGraph(target, funnels);
 
     saveFunnels([...funnels, duplicated]);
     setActiveFunnelId(duplicated.id);
+
+    // Persistência real no Supabase
+    upsertFunnelToSupabase(duplicated, currentUser?.id).catch(() => {
+      enqueueOfflineMutation('funnel', 'CREATE', duplicated.id, duplicated);
+      setPendingMutations(loadPendingQueue());
+    });
+
     showToast({
       type: 'info',
       title: 'Funil Duplicado',
-      message: `Cópia criada como "${duplicated.name}". Você já pode personalizar as etapas.`,
+      message: `Cópia criada como "${duplicated.name}". Você já pode personalizar as sequências e o fluxo.`,
     });
     return duplicated;
-  }, [funnels, saveFunnels, showToast]);
+  }, [funnels, saveFunnels, showToast, currentUser]);
 
   const archiveFunnel = useCallback((id: string) => {
     const target = funnels.find((f) => f.id === id);
-    if (funnels.filter((f) => f.status === 'active').length <= 1 && target?.status === 'active') {
-      showToast({
-        type: 'warning',
-        title: 'Operação Não Permitida',
-        message: 'Mantenha pelo menos um funil ativo no sistema.',
-      });
-      return;
-    }
     const updated = funnels.map((f) => (f.id === id ? { ...f, status: 'archived' as const } : f));
     saveFunnels(updated);
     showToast({
@@ -2913,14 +2914,6 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   }, [funnels, saveFunnels, showToast]);
 
   const deleteFunnel = useCallback((id: string): boolean => {
-    if (funnels.length <= 1) {
-      showToast({
-        type: 'warning',
-        title: 'Operação Bloqueada',
-        message: 'O Leadion requer ao menos 1 funil cadastrado.',
-      });
-      return false;
-    }
     const target = funnels.find((f) => f.id === id);
     const remaining = funnels.filter((f) => f.id !== id);
     saveFunnels(remaining);
@@ -3206,6 +3199,15 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const creds = getSupabaseCredentials();
+    if (!creds.isConfigured) {
+      setSyncStatus('offline');
+      const err = creds.validationError || 'Configuração do Supabase ausente. Verifique: VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY';
+      setLastSyncError(err);
+      setLastSyncErrorState(err);
+      return;
+    }
+
     setSyncStatus('syncing');
     try {
       // 1. Processa mutações offline acumuladas na fila local
@@ -3304,6 +3306,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
     async function initializeSupabaseIntegration() {
       try {
+        // Diagnóstico seguro e sanitizado da conexão Supabase (sem expor credenciais)
+        runSupabaseDiagnostics().catch(() => {});
+
         const session = await getCurrentSession();
         if (isMounted) {
           setCurrentSession(session);

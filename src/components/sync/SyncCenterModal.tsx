@@ -26,6 +26,11 @@ import {
   getSupabaseCredentials, 
   saveSupabaseCredentials, 
   testSupabaseConnection, 
+  runSupabaseDiagnostics,
+  maskApiKey,
+  sanitizeSupabaseKey,
+  sanitizeSupabaseUrl,
+  getSupabaseValidationStatus,
   SUPABASE_SQL_SCHEMA 
 } from '../../core/supabase/supabaseClient';
 import { getDeviceName, getOrCreateDeviceId } from '../../core/storage/offlineEngine';
@@ -84,9 +89,13 @@ export const SyncCenterModal: React.FC<SyncCenterModalProps> = ({
   };
 
   const handleSaveCredentials = () => {
-    saveSupabaseCredentials(supabaseUrlInput, supabaseKeyInput);
+    const cleanUrl = sanitizeSupabaseUrl(supabaseUrlInput);
+    const cleanKey = sanitizeSupabaseKey(supabaseKeyInput);
+    setSupabaseUrlInput(cleanUrl);
+    setSupabaseKeyInput(cleanKey);
+    saveSupabaseCredentials(cleanUrl, cleanKey);
     setCredentials(getSupabaseCredentials());
-    showToast('Credenciais do Supabase salvas!', 'success');
+    showToast('Credenciais do Supabase salvas e validadas!', 'success');
     handleTestConnection();
   };
 
@@ -380,9 +389,48 @@ export const SyncCenterModal: React.FC<SyncCenterModalProps> = ({
                   Parâmetros de Conexão Supabase
                 </h4>
                 <p className="text-zinc-500 dark:text-zinc-400">
-                  Insira sua URL e Anon Key do projeto Supabase para habilitar sincronização em tempo real e backup centralizado.
+                  Configuração oficial de conexão com o banco PostgreSQL no Supabase para sincronização em tempo real e backup.
                 </p>
               </div>
+
+              {/* Card de Diagnóstico e Validação */}
+              {credentials.validationError ? (
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Configuração do Supabase ausente ou incompleta</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    Para sincronizar com a nuvem, verifique se as variáveis de ambiente estão devidamente preenchidas:
+                  </p>
+                  <ul className="list-disc list-inside text-[11px] font-mono pl-1 space-y-0.5">
+                    <li>VITE_SUPABASE_URL</li>
+                    <li>VITE_SUPABASE_PUBLISHABLE_KEY</li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-zinc-800 dark:text-zinc-200">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      <span>Status das Variáveis de Ambiente</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      Válido ({credentials.keyType === 'publishable' ? 'Publishable Key' : 'Anon JWT'})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-zinc-600 dark:text-zinc-400">
+                    <div className="truncate">
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">URL: </span>
+                      <span className="font-mono text-zinc-500">{credentials.url || 'Não configurada'}</span>
+                    </div>
+                    <div className="truncate">
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">Chave: </span>
+                      <span className="font-mono text-zinc-500">{credentials.maskedKey}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <div>
@@ -393,22 +441,25 @@ export const SyncCenterModal: React.FC<SyncCenterModalProps> = ({
                     type="text"
                     value={supabaseUrlInput}
                     onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                    placeholder="https://xyzcompany.supabase.co"
+                    placeholder="https://sadhhykrhczkyrzwdlyv.supabase.co"
                     className="w-full p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 font-mono text-xs"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Supabase Anon Key (VITE_SUPABASE_ANON_KEY)
+                    Supabase Publishable Key (VITE_SUPABASE_PUBLISHABLE_KEY)
                   </label>
                   <input
                     type="password"
                     value={supabaseKeyInput}
                     onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    placeholder="sb_publishable_..."
                     className="w-full p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 font-mono text-xs"
                   />
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    Utilize a Publishable Key (sb_publishable_...) ou Anon Key pública. Nunca utilize chaves secretas ou service_role.
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">

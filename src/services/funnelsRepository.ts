@@ -10,14 +10,31 @@ const PRIMARY_TABLE = 'leadion_funnels';
 const FALLBACK_TABLE = 'funnels';
 
 function mapRowToFunnel(row: any): FunnelEntity {
+  let stages = Array.isArray(row.stages) ? row.stages : [];
+  let embeddedMeta: any = null;
+  const metaIdx = stages.findIndex((s: any) => s.id === '__leadion_flow_metadata__');
+  if (metaIdx >= 0) {
+    try {
+      embeddedMeta = JSON.parse(stages[metaIdx].description || '{}');
+      stages = stages.filter((s: any) => s.id !== '__leadion_flow_metadata__');
+    } catch {}
+  }
+
   return {
     id: row.id,
     name: row.name,
     code: row.code || row.id,
     description: row.description || '',
+    channel: row.channel || embeddedMeta?.channel || 'whatsapp',
+    objective: row.objective || embeddedMeta?.objective || 'primeiro_contacto',
     status: row.status || 'active',
     isDefault: Boolean(row.is_default),
-    stages: row.stages || [],
+    stages,
+    sequences: Array.isArray(row.sequences) && row.sequences.length > 0 ? row.sequences : (embeddedMeta?.sequences || row.metadata?.sequences || []),
+    flowNodes: Array.isArray(row.flow_nodes) && row.flow_nodes.length > 0 ? row.flow_nodes : (embeddedMeta?.flowNodes || row.flowNodes || row.metadata?.flowNodes || []),
+    flowEdges: Array.isArray(row.flow_edges) && row.flow_edges.length > 0 ? row.flow_edges : (embeddedMeta?.flowEdges || row.flowEdges || row.metadata?.flowEdges || []),
+    flowViewport: row.flow_viewport || embeddedMeta?.flowViewport || row.flowViewport || row.metadata?.flowViewport || { x: 0, y: 0, zoom: 1 },
+    funnelScripts: Array.isArray(row.funnel_scripts) && row.funnel_scripts.length > 0 ? row.funnel_scripts : (embeddedMeta?.funnelScripts || row.funnelScripts || row.metadata?.funnelScripts || []),
     version: row.version ?? 1,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
@@ -30,8 +47,15 @@ function mapFunnelToRow(f: FunnelEntity, userId?: string | null): Record<string,
     name: f.name,
     code: f.code || f.id,
     description: f.description || '',
+    channel: f.channel || 'whatsapp',
+    objective: f.objective || 'primeiro_contacto',
     is_default: Boolean(f.isDefault),
     stages: f.stages || [],
+    sequences: f.sequences || [],
+    flow_nodes: f.flowNodes || [],
+    flow_edges: f.flowEdges || [],
+    flow_viewport: f.flowViewport || { x: 0, y: 0, zoom: 1 },
+    funnel_scripts: f.funnelScripts || [],
     version: f.version ?? 1,
     status: f.status || 'active',
     updated_at: new Date().toISOString(),
@@ -98,6 +122,41 @@ export async function upsertFunnelToSupabase(
     if (error && error.code === '42P01') {
       const fallbackRes = await client.from(FALLBACK_TABLE).upsert(row, { onConflict: 'id' });
       error = fallbackRes.error;
+    } else if (error && error.code === '42703') {
+      // Se colunas como sequences/flow_nodes não existirem na tabela remota,
+      // empacota com segurança dentro do JSON de stages
+      const legacyStagesWithMeta = [
+        ...funnel.stages,
+        {
+          id: '__leadion_flow_metadata__',
+          name: '__METADATA__',
+          order: 9999,
+          color: 'zinc' as const,
+          description: JSON.stringify({
+            channel: funnel.channel,
+            objective: funnel.objective,
+            sequences: funnel.sequences,
+            flowNodes: funnel.flowNodes,
+            flowEdges: funnel.flowEdges,
+            flowViewport: funnel.flowViewport,
+            funnelScripts: funnel.funnelScripts,
+          }),
+        },
+      ];
+      const legacyRow: Record<string, any> = {
+        id: funnel.id,
+        name: funnel.name,
+        code: funnel.code || funnel.id,
+        description: funnel.description || '',
+        is_default: Boolean(funnel.isDefault),
+        stages: legacyStagesWithMeta,
+        version: funnel.version ?? 1,
+        status: funnel.status || 'active',
+        updated_at: new Date().toISOString(),
+      };
+      if (userId) legacyRow.user_id = userId;
+      const retryRes = await client.from(PRIMARY_TABLE).upsert(legacyRow, { onConflict: 'id' });
+      error = retryRes.error;
     }
 
     if (error) {

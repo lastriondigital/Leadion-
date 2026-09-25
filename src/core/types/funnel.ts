@@ -31,14 +31,144 @@ export interface FunnelStage {
   conditionalRules?: FunnelStageConditionalRule;
 }
 
+export type FunnelChannel = 'whatsapp' | 'instagram' | 'email' | 'linkedin' | 'phone' | 'outro';
+
+export type FunnelObjective = 
+  | 'primeiro_contacto' 
+  | 'qualificacao' 
+  | 'apresentacao' 
+  | 'follow_up' 
+  | 'fechamento' 
+  | 'reativacao' 
+  | 'personalizado';
+
+export type FollowUpCondition = 
+  | 'respondeu' 
+  | 'nao_respondeu' 
+  | 'mensagem_enviada' 
+  | 'prazo_expirado' 
+  | 'manual' 
+  | 'interesse' 
+  | 'sem_interesse' 
+  | 'encerramento';
+
+export interface MessageFollowUp {
+  id: string;
+  messageId: string;
+  sequenceId: string;
+  funnelId: string;
+  name: string;
+  delayValue: number;
+  delayUnit: 'dias' | 'horas' | 'minutos' | 'semanas';
+  condition: FollowUpCondition;
+  content: string;
+  targetType?: 'sequence' | 'message' | 'follow_up' | 'transition' | 'end' | 'custom';
+  targetId?: string;
+  targetFunnelId?: string;
+  targetSequenceId?: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SequenceMessage {
+  id: string;
+  sequenceId: string;
+  funnelId: string;
+  internalName: string;
+  channel: FunnelChannel;
+  content: string;
+  order: number;
+  followUps: MessageFollowUp[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FunnelSequence {
+  id: string;
+  funnelId: string;
+  name: string;
+  description?: string;
+  objective?: string;
+  order: number;
+  color?: FunnelSemanticColor;
+  messages: SequenceMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FlowNodeType = 'sequence' | 'message' | 'follow_up' | 'condition' | 'transition' | 'end';
+
+export interface FlowNode {
+  id: string;
+  funnelId: string;
+  type: FlowNodeType;
+  referenceId?: string;
+  title: string;
+  subtitle?: string;
+  positionX: number;
+  positionY: number;
+  data?: {
+    channel?: FunnelChannel;
+    condition?: FollowUpCondition | string;
+    targetFunnelId?: string;
+    targetFunnelName?: string;
+    targetSequenceId?: string;
+    targetSequenceName?: string;
+    delayText?: string;
+    contentPreview?: string;
+    order?: number;
+    color?: string;
+    sequenceId?: string;
+    messageId?: string;
+    [key: string]: any;
+  };
+}
+
+export interface FlowEdge {
+  id: string;
+  funnelId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  condition: FollowUpCondition | string;
+  label: string;
+  metadata?: Record<string, any>;
+}
+
+export interface FlowViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface FunnelScript {
+  id: string;
+  funnelId: string;
+  title: string;
+  content: string;
+  channel: FunnelChannel;
+  sequenceId?: string;
+  messageId?: string;
+  situation?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FunnelEntity {
   id: string;
   name: string;                    // Ex: "Funil Comercial B2B", "Funil de Vendas de LPs", etc.
   code: string;                    // Ex: "FUN-B2B", "FUN-LP"
   description?: string;
+  channel?: FunnelChannel;
+  objective?: FunnelObjective;
   status: 'active' | 'archived';
   isDefault?: boolean;
   stages: FunnelStage[];
+  sequences?: FunnelSequence[];
+  flowNodes?: FlowNode[];
+  flowEdges?: FlowEdge[];
+  flowViewport?: FlowViewport;
+  funnelScripts?: FunnelScript[];
   
   createdAt: string;
   updatedAt: string;
@@ -183,3 +313,34 @@ export const FUNNEL_COLOR_PRESETS: Record<FunnelSemanticColor, FunnelColorConfig
     text: 'text-rose-700 dark:text-rose-300',
   },
 };
+
+export const FUNNEL_CHANNELS: { value: FunnelChannel; label: string }[] = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'email', label: 'E-mail' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'phone', label: 'Telefone / Ligação' },
+  { value: 'outro', label: 'Outro' },
+];
+
+export const FUNNEL_OBJECTIVES: { value: FunnelObjective; label: string }[] = [
+  { value: 'primeiro_contacto', label: 'Primeiro contacto' },
+  { value: 'qualificacao', label: 'Qualificação' },
+  { value: 'apresentacao', label: 'Apresentação' },
+  { value: 'follow_up', label: 'Follow-up' },
+  { value: 'fechamento', label: 'Fechamento' },
+  { value: 'reativacao', label: 'Reativação' },
+  { value: 'personalizado', label: 'Personalizado' },
+];
+
+export const FOLLOWUP_CONDITIONS: { value: FollowUpCondition; label: string; description: string; color: string }[] = [
+  { value: 'nao_respondeu', label: 'Não respondeu', description: 'Tempo expirado sem retorno da empresa', color: 'amber' },
+  { value: 'respondeu', label: 'Respondeu', description: 'Empresa enviou resposta ou mensagem de réplica', color: 'emerald' },
+  { value: 'mensagem_enviada', label: 'Mensagem enviada', description: 'Disparo manual ou confirmação de envio', color: 'blue' },
+  { value: 'prazo_expirado', label: 'Prazo expirado', description: 'Janela de tempo limite ultrapassada', color: 'rose' },
+  { value: 'manual', label: 'Manual', description: 'Ação executada sob critério do operador', color: 'purple' },
+  { value: 'interesse', label: 'Demonstrou interesse', description: 'Contato pediu proposta, apresentação ou reunião', color: 'emerald' },
+  { value: 'sem_interesse', label: 'Sem interesse', description: 'Contato recusou ou adiou sem previsão', color: 'zinc' },
+  { value: 'encerramento', label: 'Encerramento', description: 'Finalização do contato ou descarte', color: 'rose' },
+];
+
