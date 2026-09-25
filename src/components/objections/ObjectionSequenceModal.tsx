@@ -414,7 +414,7 @@ export const ObjectionSequenceModal: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {STEP_TABS.map((tab, idx) => {
               const isActive = activeStepType === tab.key;
               return (
@@ -672,7 +672,7 @@ export const ObjectionSequenceModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-3">
+        <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5">
           <Button
             type="button"
             variant="ghost"
@@ -680,6 +680,7 @@ export const ObjectionSequenceModal: React.FC = () => {
               setIsObjectionSequenceModalOpen(false);
               setEditingObjectionSequence(null);
             }}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -688,6 +689,7 @@ export const ObjectionSequenceModal: React.FC = () => {
             variant="primary"
             onClick={handleSave}
             icon={<CheckCircle2 className="w-4 h-4" />}
+            className="w-full sm:w-auto"
           >
             Salvar Mini-Funil Completo
           </Button>

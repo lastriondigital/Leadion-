@@ -48,9 +48,14 @@ import {
   getLastSyncError, 
   setLastSyncError, 
   getOrCreateDeviceId, 
-  getDeviceName 
+  getDeviceName,
+  generateSecureUUID
 } from '../core/storage/offlineEngine';
+import { UserAccount, WorkspaceProfile } from '../core/types/account';
+import { idbGet, idbPut, idbBulkPut, idbDelete, idbClear, idbGetAll, STORES } from '../core/storage/indexedDB';
+import { connectivityEngine } from '../core/storage/connectivityEngine';
 import { 
+  getSupabaseClient,
   testSupabaseConnection, 
   uploadCloudBackup, 
   listCloudBackups, 
@@ -369,11 +374,43 @@ interface LeadionContextType {
   importCompaniesList: (imported: Partial<Company>[], mode: 'merge' | 'create_only') => void;
   simulateRemoteConflict: () => void;
 
+  // User Profile & Account (Local / Online Dual Engine)
+  userAccount: UserAccount | null;
+  workspaceProfile: WorkspaceProfile | null;
+  createLocalAccount: (data: {
+    fullName: string;
+    companyName: string;
+    sector?: string;
+    country?: string;
+    state?: string;
+    region?: string;
+    phone?: string;
+    whatsapp?: string;
+    localCredential?: string;
+  }) => Promise<UserAccount>;
+  createOnlineAccount: (data: {
+    fullName: string;
+    email: string;
+    password: string;
+    companyName: string;
+    sector?: string;
+    country?: string;
+    state?: string;
+    region?: string;
+    phone?: string;
+    whatsapp?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  linkLocalAccountToCloud: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  logoutAccount: () => Promise<void>;
+  isLinkModalOpen: boolean;
+  setIsLinkModalOpen: (open: boolean) => void;
+  openLinkModal: () => void;
+
   // Supabase Auth & Session
   currentUser: User | null;
   currentSession: Session | null;
   authLoading: boolean;
-  signIn: (email: string, pass: string) => Promise<{ success: boolean; user?: User | null; error?: string }>;
+  signIn: (email: string, pass: string, options?: { mergeLocalData?: boolean }) => Promise<{ success: boolean; user?: User | null; error?: string }>;
   signUp: (email: string, pass: string, name?: string) => Promise<{ success: boolean; user?: User | null; error?: string; requiresEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   isAuthModalOpen: boolean;
@@ -387,9 +424,44 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const [activeNav, setActiveNav] = useState<DesktopNavId>('today');
 
-  // User Profile
+  // Local & Online Account State
+  const [userAccount, setUserAccount] = useState<UserAccount | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leadion_user_account');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return null;
+  });
+
+  const [workspaceProfile, setWorkspaceProfile] = useState<WorkspaceProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leadion_workspace_profile');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return null;
+  });
+
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const openLinkModal = useCallback(() => setIsLinkModalOpen(true), []);
+
+  // User Profile Name
   const [userName, setUserNameState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
+      const savedAcc = localStorage.getItem('leadion_user_account');
+      if (savedAcc) {
+        try {
+          const parsed = JSON.parse(savedAcc);
+          if (parsed.fullName) return parsed.fullName;
+        } catch {}
+      }
       return localStorage.getItem('leadion-username') || 'Manuel';
     }
     return 'Manuel';
@@ -419,13 +491,34 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     setIsAuthModalOpen(true);
   }, []);
 
-  const signIn = useCallback(async (email: string, pass: string) => {
+  const signIn = useCallback(async (email: string, pass: string, options?: { mergeLocalData?: boolean }) => {
     const res = await signInWithEmail(email, pass);
     if (res.success && res.user) {
       setCurrentUser(res.user);
-      if (res.user.user_metadata?.full_name) {
-        setUserName(res.user.user_metadata.full_name);
+      const fullName = res.user.user_metadata?.full_name || email.split('@')[0];
+      setUserName(fullName);
+
+      const remoteUserId = res.user.id;
+      const now = new Date().toISOString();
+
+      const onlineAccount: UserAccount = {
+        userId: remoteUserId,
+        workspaceId: 'wsp-' + generateSecureUUID(),
+        accountType: 'online',
+        fullName,
+        email,
+        companyName: res.user.user_metadata?.company_name || 'Meu Workspace',
+        deviceId: getOrCreateDeviceId(),
+        createdAt: now,
+        updatedAt: now,
+        syncedAt: now,
+      };
+
+      setUserAccount(onlineAccount);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('leadion_user_account', JSON.stringify(onlineAccount));
       }
+      idbPut(STORES.ACCOUNTS, onlineAccount).catch(() => {});
     }
     return res;
   }, [setUserName]);
@@ -3227,6 +3320,11 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
           purgeDemoDataFromSupabase(client).catch((e) => console.warn('Supabase purge:', e));
         }
 
+        // Não sobrescreve dados locais se o usuário estiver usando Conta Local ou desconectado
+        if (!session && (!userAccount || userAccount.accountType === 'local')) {
+          return;
+        }
+
         // Puxa empresas diretamente do Supabase e dados remotos consolidados
         const [remote, compRes] = await Promise.all([
           pullAllRemoteData(),
@@ -3239,25 +3337,30 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         const cleanRemoteActions = (remote.actions || []).filter((a) => !isDemoAction(a));
 
         if (compRes.success) {
-          setCompanies(cleanDbCompanies);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('leadion-companies', JSON.stringify(cleanDbCompanies));
-            const savedSelectedId = localStorage.getItem('leadion-selected-company-id');
-            if (savedSelectedId) {
-              const matched = cleanDbCompanies.find((c) => c.id === savedSelectedId);
-              if (matched) {
-                setSelectedCompanyState(matched);
-              } else {
-                setSelectedCompanyState(null);
-                localStorage.removeItem('leadion-selected-company-id');
-              }
+          // Preserva e mescla dados locais que ainda não existam no servidor
+          setCompanies((prevLocal) => {
+            const unsynced = prevLocal.filter(
+              (loc) => !cleanDbCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
+            );
+            const merged = [...cleanDbCompanies, ...unsynced];
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-companies', JSON.stringify(merged));
             }
-          }
+            idbBulkPut(STORES.COMPANIES, merged).catch(() => {});
+            return merged;
+          });
         } else if (remote.hasRemoteData) {
-          setCompanies(cleanRemoteCompanies);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('leadion-companies', JSON.stringify(cleanRemoteCompanies));
-          }
+          setCompanies((prevLocal) => {
+            const unsynced = prevLocal.filter(
+              (loc) => !cleanRemoteCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
+            );
+            const merged = [...cleanRemoteCompanies, ...unsynced];
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-companies', JSON.stringify(merged));
+            }
+            idbBulkPut(STORES.COMPANIES, merged).catch(() => {});
+            return merged;
+          });
         }
 
         if (remote.hasRemoteData) {
@@ -3623,6 +3726,267 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     });
   }, [companies, openConflictResolutionModal, showToast]);
 
+  // ==========================================
+  // CONTA LOCAL & ONLINE (DUAL ENGINE)
+  // ==========================================
+  const createLocalAccount = useCallback(async (data: {
+    fullName: string;
+    companyName: string;
+    sector?: string;
+    country?: string;
+    state?: string;
+    region?: string;
+    phone?: string;
+    whatsapp?: string;
+    localCredential?: string;
+  }) => {
+    const localUserId = 'usr-' + generateSecureUUID();
+    const localWorkspaceId = 'wsp-' + generateSecureUUID();
+    const deviceId = getOrCreateDeviceId();
+    const now = new Date().toISOString();
+
+    const newAccount: UserAccount = {
+      userId: localUserId,
+      workspaceId: localWorkspaceId,
+      accountType: 'local',
+      fullName: data.fullName,
+      companyName: data.companyName,
+      sector: data.sector || '',
+      country: data.country || 'Brasil',
+      state: data.state || '',
+      region: data.region || '',
+      phone: data.phone || '',
+      whatsapp: data.whatsapp || '',
+      localCredential: data.localCredential || data.fullName,
+      deviceId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const newWorkspace: WorkspaceProfile = {
+      id: localWorkspaceId,
+      name: data.companyName,
+      sector: data.sector,
+      country: data.country,
+      state: data.state,
+      region: data.region,
+      ownerId: localUserId,
+      isLocalOnly: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setUserAccount(newAccount);
+    setWorkspaceProfile(newWorkspace);
+    setUserName(data.fullName);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion_user_account', JSON.stringify(newAccount));
+      localStorage.setItem('leadion_workspace_profile', JSON.stringify(newWorkspace));
+    }
+
+    await idbPut(STORES.ACCOUNTS, newAccount);
+    await idbPut(STORES.WORKSPACES, newWorkspace);
+
+    setSyncStatus('offline');
+    return newAccount;
+  }, [setUserName]);
+
+  const createOnlineAccount = useCallback(async (data: {
+    fullName: string;
+    email: string;
+    password: string;
+    companyName: string;
+    sector?: string;
+    country?: string;
+    state?: string;
+    region?: string;
+    phone?: string;
+    whatsapp?: string;
+  }) => {
+    const signUpRes = await signUpWithEmail(data.email, data.password, data.fullName);
+    if (!signUpRes.success) {
+      return { success: false, error: signUpRes.error };
+    }
+
+    const remoteUserId = signUpRes.user?.id || 'usr-' + generateSecureUUID();
+    const workspaceId = 'wsp-' + generateSecureUUID();
+    const deviceId = getOrCreateDeviceId();
+    const now = new Date().toISOString();
+
+    const newAccount: UserAccount = {
+      userId: remoteUserId,
+      workspaceId,
+      accountType: 'online',
+      fullName: data.fullName,
+      email: data.email,
+      companyName: data.companyName,
+      sector: data.sector || '',
+      country: data.country || 'Brasil',
+      state: data.state || '',
+      region: data.region || '',
+      phone: data.phone || '',
+      whatsapp: data.whatsapp || '',
+      deviceId,
+      createdAt: now,
+      updatedAt: now,
+      syncedAt: now,
+    };
+
+    const newWorkspace: WorkspaceProfile = {
+      id: workspaceId,
+      name: data.companyName,
+      sector: data.sector,
+      country: data.country,
+      state: data.state,
+      region: data.region,
+      ownerId: remoteUserId,
+      isLocalOnly: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setUserAccount(newAccount);
+    setWorkspaceProfile(newWorkspace);
+    setUserName(data.fullName);
+    setCurrentUser(signUpRes.user || null);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion_user_account', JSON.stringify(newAccount));
+      localStorage.setItem('leadion_workspace_profile', JSON.stringify(newWorkspace));
+    }
+
+    await idbPut(STORES.ACCOUNTS, newAccount);
+    await idbPut(STORES.WORKSPACES, newWorkspace);
+
+    setSyncStatus('synced');
+    setLastSyncTimestamp(now);
+
+    return { success: true };
+  }, [setUserName]);
+
+  const linkLocalAccountToCloud = useCallback(async (email: string, pass: string) => {
+    if (!userAccount) {
+      return { success: false, error: 'Nenhuma conta local ativa para vincular.' };
+    }
+
+    // 1. Cria usuário no Supabase Auth
+    const signUpRes = await signUpWithEmail(email, pass, userAccount.fullName);
+    if (!signUpRes.success) {
+      return { success: false, error: signUpRes.error || 'Falha ao autenticar na nuvem.' };
+    }
+
+    const remoteUserId = signUpRes.user?.id || 'usr-' + generateSecureUUID();
+    const now = new Date().toISOString();
+
+    // 2. Mapeia dados locais (preservando local_id e setando remote_id e sync_status)
+    const updatedCompanies = companies.map((c) => ({
+      ...c,
+      local_id: c.local_id || c.id,
+      remote_id: c.remote_id || c.id,
+      sync_status: 'synced' as const,
+      synced_at: now,
+      updatedAt: now,
+    }));
+    setCompanies(updatedCompanies);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-companies', JSON.stringify(updatedCompanies));
+    }
+    await idbBulkPut(STORES.COMPANIES, updatedCompanies);
+
+    const updatedActions = actions.map((a) => ({
+      ...a,
+      local_id: (a as any).local_id || a.id,
+      sync_status: 'synced' as const,
+      synced_at: now,
+    }));
+    setActions(updatedActions);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-prospect-actions', JSON.stringify(updatedActions));
+    }
+    await idbBulkPut(STORES.ACTIONS, updatedActions);
+
+    // 3. Envia os dados para o Supabase
+    for (const comp of updatedCompanies) {
+      await upsertCompanyToSupabase(comp, remoteUserId);
+    }
+    for (const act of updatedActions) {
+      await upsertActionToSupabase(act, remoteUserId);
+    }
+    for (const scr of scriptsEntities) {
+      await upsertScriptToSupabase(scr, remoteUserId);
+    }
+    for (const fun of funnels) {
+      await upsertFunnelToSupabase(fun, remoteUserId);
+    }
+    for (const srv of services) {
+      await upsertServiceToSupabase(srv, remoteUserId);
+    }
+    for (const obj of objectionsEntities) {
+      await upsertObjectionToSupabase(obj, remoteUserId);
+    }
+
+    // 4. Limpa a fila pois todos os dados locais foram consolidados
+    clearPendingQueue();
+    setPendingMutations([]);
+
+    // 5. Atualiza a conta para Online
+    const updatedAccount: UserAccount = {
+      ...userAccount,
+      accountType: 'online',
+      userId: remoteUserId,
+      email: email,
+      updatedAt: now,
+      syncedAt: now,
+    };
+
+    setUserAccount(updatedAccount);
+    setCurrentUser(signUpRes.user || null);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion_user_account', JSON.stringify(updatedAccount));
+    }
+    await idbPut(STORES.ACCOUNTS, updatedAccount);
+
+    setSyncStatus('synced');
+    setLastSyncTimestamp(now);
+
+    return { success: true };
+  }, [userAccount, companies, actions, scriptsEntities, funnels, services, objectionsEntities]);
+
+  const logoutAccount = useCallback(async () => {
+    await signOutUser();
+    setCurrentUser(null);
+    setCurrentSession(null);
+    setUserAccount(null);
+    setWorkspaceProfile(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('leadion_user_account');
+      localStorage.removeItem('leadion_workspace_profile');
+      localStorage.removeItem('leadion-selected-company-id');
+    }
+  }, []);
+
+  // Escuta de conectividade real com auto-sync ao reconectar
+  React.useEffect(() => {
+    const unsubscribe = connectivityEngine.subscribe(({ connectivity }) => {
+      if (connectivity === 'online') {
+        setSyncStatus((prev) => {
+          if (prev === 'syncing') return 'syncing';
+          return pendingMutations.length > 0 ? 'pending' : 'synced';
+        });
+        // Dispara sync em background se for conta online
+        if (userAccount?.accountType === 'online') {
+          triggerCloudSync().catch(() => {});
+        }
+      } else if (connectivity === 'offline') {
+        setSyncStatus('offline');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [pendingMutations.length, userAccount?.accountType, triggerCloudSync]);
+
   return (
     <LeadionContext.Provider
       value={{
@@ -3819,6 +4183,17 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         isAuthModalOpen,
         setIsAuthModalOpen,
         openAuthModal,
+
+        // Dual Engine Account (Local / Online)
+        userAccount,
+        workspaceProfile,
+        createLocalAccount,
+        createOnlineAccount,
+        linkLocalAccountToCloud,
+        logoutAccount,
+        isLinkModalOpen,
+        setIsLinkModalOpen,
+        openLinkModal,
       }}
     >
       {children}

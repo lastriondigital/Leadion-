@@ -215,7 +215,7 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({ lead, index }) => {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -237,7 +237,7 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({ lead, index }) => {
               }
               iconRight={<ArrowRight className="w-3.5 h-3.5" />}
               onClick={handleExecutePrimary}
-              className="shadow-xs"
+              className="shadow-xs max-w-full text-xs"
             >
               6. {lead.nextAction.label}
             </Button>

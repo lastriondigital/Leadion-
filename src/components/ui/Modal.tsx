@@ -47,7 +47,7 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-zinc-950/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
         className="fixed inset-0"
         onClick={onClose}
@@ -56,33 +56,33 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        className={`relative z-10 w-full ${maxWidthClasses[maxWidth]} bg-white dark:bg-[#161922] border border-[#E6E8EC] dark:border-[#232836] rounded-[20px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]`}
+        className={`relative z-10 w-full ${maxWidthClasses[maxWidth]} max-w-full bg-white dark:bg-[#161922] border border-[#E6E8EC] dark:border-[#232836] rounded-[20px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] sm:max-h-[90vh]`}
       >
-        <div className="flex items-start justify-between p-6 border-b border-[#E6E8EC]/80 dark:border-[#232836]/80 shrink-0">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+        <div className="flex items-start justify-between p-4 sm:p-6 border-b border-[#E6E8EC]/80 dark:border-[#232836]/80 shrink-0">
+          <div className="min-w-0 pr-2">
+            <h2 className="text-base sm:text-lg font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
               {title}
             </h2>
             {description && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed break-words">
                 {description}
               </p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-w-0">
           {children}
         </div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-3 p-4 px-6 bg-zinc-50 dark:bg-[#12151D] border-t border-[#E6E8EC]/80 dark:border-[#232836]/80 shrink-0">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 sm:gap-3 p-3.5 sm:p-4 sm:px-6 bg-zinc-50 dark:bg-[#12151D] border-t border-[#E6E8EC]/80 dark:border-[#232836]/80 shrink-0">
             {footer}
           </div>
         )}

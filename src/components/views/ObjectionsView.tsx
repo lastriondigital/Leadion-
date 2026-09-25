@@ -129,29 +129,30 @@ export const ObjectionsView: React.FC = () => {
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       
       {/* Top Header Banner */}
-      <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-        <div className="space-y-1">
+      <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-zinc-100 tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-zinc-100 tracking-tight truncate">
                 Biblioteca de Objeções & Mini-Funis
               </h1>
-              <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+              <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
                 Mapeamento tático de reversão de atrito: <span className="font-semibold text-zinc-700 dark:text-zinc-300">Objeção → Resposta 1 → Nova Reação → Resposta 2 → Follow-up → Próxima Etapa</span>.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => openObjectionDispatchModal()}
             icon={<Send className="w-3.5 h-3.5 text-emerald-500" />}
+            className="w-full sm:w-auto"
           >
             Simular Disparo no WhatsApp
           </Button>
@@ -161,6 +162,7 @@ export const ObjectionsView: React.FC = () => {
             size="sm"
             onClick={handleCreateNewObjection}
             icon={<Plus className="w-3.5 h-3.5" />}
+            className="w-full sm:w-auto"
           >
             Nova Objeção
           </Button>
@@ -213,11 +215,11 @@ export const ObjectionsView: React.FC = () => {
       </div>
 
       {/* Barra de Busca e Filtro de Categorias */}
-      <div className="p-4 rounded-xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-3">
+      <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Input de Busca */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
@@ -228,13 +230,13 @@ export const ObjectionsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <ListFilter className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="text-xs text-zinc-500 font-medium">Categoria:</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <ListFilter className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+            <span className="text-xs text-zinc-500 font-medium shrink-0">Categoria:</span>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-800 dark:text-zinc-200 font-medium"
+              className="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-800 dark:text-zinc-200 font-medium"
             >
               <option value="all">Todas as Categorias</option>
               <option value="preco">Preço (Está caro)</option>
@@ -300,92 +302,96 @@ export const ObjectionsView: React.FC = () => {
                 className="rounded-2xl bg-white dark:bg-[#141720] border border-zinc-200 dark:border-zinc-800 shadow-xs overflow-hidden transition-all"
               >
                 {/* Header do Card da Objeção */}
-                <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30">
-                  <div className="flex items-start sm:items-center gap-3">
+                <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30">
+                  <div className="flex items-start gap-3 min-w-0">
                     <button
                       type="button"
                       onClick={() => toggleExpand(obj.id)}
-                      className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0 hover:bg-amber-500/20 transition-colors"
+                      className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0 hover:bg-amber-500/20 transition-colors mt-0.5"
                     >
                       <ShieldAlert className="w-5 h-5" />
                     </button>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 break-words">
                           {obj.name}
                         </h3>
-                        <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
+                        <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold shrink-0">
                           {obj.category}
                         </span>
-                        <span className="text-[11px] text-zinc-400 font-medium">
+                        <span className="text-[11px] text-zinc-400 font-medium shrink-0">
                           • {obj.sequences.length} {obj.sequences.length === 1 ? 'mini-funil' : 'mini-funis'}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-words">
                         {obj.description}
                       </p>
                     </div>
                   </div>
 
-                  {/* Ações da Objeção */}
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openObjectionDispatchModal(undefined, undefined, obj.id)}
-                      className="text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-xs"
-                      icon={<Send className="w-3 h-3" />}
-                    >
-                      Disparar Resposta
-                    </Button>
+                  {/* Ações da Objeção: flex-wrap sem overflow e sem cortar botões */}
+                  <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 w-full md:w-auto pt-2.5 md:pt-0 border-t md:border-t-0 border-zinc-100 dark:border-zinc-800/60">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openObjectionDispatchModal(undefined, undefined, obj.id)}
+                        className="text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-xs shrink-0"
+                        icon={<Send className="w-3.5 h-3.5" />}
+                      >
+                        Disparar Resposta
+                      </Button>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAddSequence(obj)}
-                      icon={<Plus className="w-3 h-3" />}
-                      className="text-xs"
-                    >
-                      + Mini-Funil
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAddSequence(obj)}
+                        icon={<Plus className="w-3.5 h-3.5" />}
+                        className="text-xs shrink-0"
+                      >
+                        + Mini-Funil
+                      </Button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleEditObjection(obj)}
-                      className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-                      title="Editar Objeção"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleEditObjection(obj)}
+                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                        title="Editar Objeção"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        duplicateObjection(obj.id);
-                        showToast({ type: 'info', title: 'Objeção Duplicada', message: `Cópia de "${obj.name}" criada.` });
-                      }}
-                      className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-                      title="Duplicar Objeção"
-                    >
-                      <CopyPlus className="w-3.5 h-3.5" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          duplicateObjection(obj.id);
+                          showToast({ type: 'info', title: 'Objeção Duplicada', message: `Cópia de "${obj.name}" criada.` });
+                        }}
+                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                        title="Duplicar Objeção"
+                      >
+                        <CopyPlus className="w-3.5 h-3.5" />
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(obj.id, obj.name)}
-                      className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-500"
-                      title="Excluir Objeção"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(obj.id, obj.name)}
+                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-500"
+                        title="Excluir Objeção"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(obj.id)}
-                      className="text-xs font-semibold text-[#635BFF] px-2 py-1 hover:underline"
-                    >
-                      {isExpanded ? 'Recolher' : 'Ver Mini-Funis'}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(obj.id)}
+                        className="text-xs font-semibold text-[#635BFF] px-2 py-1 hover:underline shrink-0"
+                      >
+                        {isExpanded ? 'Recolher' : 'Ver Mini-Funis'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -421,11 +427,11 @@ export const ObjectionsView: React.FC = () => {
                           className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 shadow-xs space-y-3"
                         >
                           {/* Cabeçalho do Mini-Funil */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-zinc-100 dark:border-zinc-800">
-                            <div className="flex items-center gap-2">
-                              <Layers className="w-4 h-4 text-[#635BFF]" />
-                              <div>
-                                <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-zinc-100 dark:border-zinc-800">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Layers className="w-4 h-4 text-[#635BFF] shrink-0" />
+                              <div className="min-w-0">
+                                <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
                                   {seq.name}
                                 </h4>
                                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -434,7 +440,7 @@ export const ObjectionsView: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
                               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
                                 Canal: {seq.channel}
                               </span>
@@ -457,7 +463,7 @@ export const ObjectionsView: React.FC = () => {
                               Fluxo Encadeado do Mini-Funil:
                             </span>
 
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
                               {seq.steps.map((step, stIdx) => {
                                 const isReaction = step.stepType === 'reaction';
                                 const isNextStage = step.stepType === 'next_stage';

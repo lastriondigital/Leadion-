@@ -37,6 +37,9 @@ import { SyncCenterModal } from '../sync/SyncCenterModal';
 import { DataManagementModal } from '../data/DataManagementModal';
 import { ConflictResolutionModal } from '../sync/ConflictResolutionModal';
 import { AuthModal } from '../modals/AuthModal';
+import { WelcomeAuthView } from '../auth/WelcomeAuthView';
+import { LinkAccountModal } from '../auth/LinkAccountModal';
+import { LocalAccountBanner } from '../auth/LocalAccountBanner';
 
 export const AppShell: React.FC = () => {
   const { 
@@ -74,6 +77,12 @@ export const AppShell: React.FC = () => {
     resolveActiveConflict,
     isAuthModalOpen,
     setIsAuthModalOpen,
+    userAccount,
+    currentUser,
+    authLoading,
+    isLinkModalOpen,
+    setIsLinkModalOpen,
+    openLinkModal,
   } = useLeadion() as any;
 
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
@@ -106,6 +115,11 @@ export const AppShell: React.FC = () => {
     }
   };
 
+  // Se não houver conta local criada nem sessão online ativa, exibe o fluxo inicial
+  if (!userAccount && !currentUser && !authLoading) {
+    return <WelcomeAuthView />;
+  }
+
   return (
     <div className="min-h-screen flex bg-app text-ink">
       {/* Desktop Sidebar */}
@@ -121,8 +135,11 @@ export const AppShell: React.FC = () => {
 
         {/* Desktop Header */}
         <Header />
+
+        {/* Banner de Conta Local Não Sincronizada */}
+        <LocalAccountBanner onOpenLinkModal={openLinkModal} />
         
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 min-w-0">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 max-w-full">
           {renderActiveView()}
         </main>
       </div>
@@ -269,6 +286,12 @@ export const AppShell: React.FC = () => {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      {/* Modal de Vinculação de Conta Local à Nuvem */}
+      <LinkAccountModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
       />
     </div>
   );

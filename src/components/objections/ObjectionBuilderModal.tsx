@@ -241,7 +241,7 @@ export const ObjectionBuilderModal: React.FC = () => {
         </div>
 
         {/* Ações do Footer */}
-        <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-3">
+        <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5">
           <Button
             type="button"
             variant="ghost"
@@ -249,6 +249,7 @@ export const ObjectionBuilderModal: React.FC = () => {
               setIsObjectionBuilderModalOpen(false);
               setEditingObjectionEntity(null);
             }}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -256,6 +257,7 @@ export const ObjectionBuilderModal: React.FC = () => {
             type="button"
             variant="primary"
             onClick={handleSave}
+            className="w-full sm:w-auto"
           >
             {editingObjectionEntity ? 'Salvar Alterações' : 'Criar Objeção'}
           </Button>

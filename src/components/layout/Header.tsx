@@ -34,6 +34,9 @@ export const Header: React.FC = () => {
     currentUser,
     openAuthModal,
     signOut,
+    userAccount,
+    openLinkModal,
+    logoutAccount,
   } = useLeadion() as any;
   const { theme, toggleTheme } = useTheme();
 
@@ -132,16 +135,29 @@ export const Header: React.FC = () => {
           onClick={() => setIsSyncCenterModalOpen(true)}
         />
 
-        {/* Supabase Cloud Auth Button / User Session */}
-        {currentUser ? (
+        {/* Account Status / Cloud Sync Action */}
+        {userAccount?.accountType === 'local' ? (
+          <button
+            type="button"
+            onClick={openLinkModal}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80 hover:bg-amber-100/70 transition-colors cursor-pointer group"
+            title="Conta criada localmente. Clique para proteger seus dados na nuvem."
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="hidden sm:inline font-bold">Conta Local</span>
+            <span className="text-[10px] bg-amber-200/80 dark:bg-amber-900/80 px-1.5 py-0.2 rounded-md font-bold text-amber-900 dark:text-amber-100 group-hover:bg-[#635BFF] group-hover:text-white transition-colors">
+              Conectar
+            </span>
+          </button>
+        ) : currentUser || userAccount?.accountType === 'online' ? (
           <div className="flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-900 border border-[#E6E8EC] dark:border-[#232836] rounded-[10px] px-2.5 py-1 text-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Autenticado no Supabase" />
-            <span className="text-zinc-700 dark:text-zinc-200 font-medium truncate max-w-[120px]" title={currentUser.email}>
-              {currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Usuário'}
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Conta Sincronizada" />
+            <span className="text-zinc-700 dark:text-zinc-200 font-medium truncate max-w-[120px]" title={userAccount?.email || currentUser?.email}>
+              {userAccount?.fullName || currentUser?.user_metadata?.full_name || 'Online'}
             </span>
             <button
-              onClick={() => signOut()}
-              title="Sair da conta Supabase"
+              onClick={() => logoutAccount ? logoutAccount() : signOut()}
+              title="Sair da conta"
               className="text-zinc-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer ml-0.5"
             >
               <LogOut className="w-3.5 h-3.5" />

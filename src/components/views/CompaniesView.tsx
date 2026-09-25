@@ -229,7 +229,7 @@ export const CompaniesView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setActiveNav('qualification')}
@@ -251,7 +251,7 @@ export const CompaniesView: React.FC = () => {
         </div>
 
         {/* Quick KPI Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
           <div className="p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800">
             <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Total</span>
             <span className="text-lg font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{stats.total}</span>
@@ -615,7 +615,7 @@ export const CompaniesView: React.FC = () => {
         /* TABLE VIEW */
         <div className="rounded-[18px] bg-white dark:bg-[#161922] border border-[#E6E8EC] dark:border-[#232836] shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[700px] text-left text-xs">
               <thead className="bg-zinc-50 dark:bg-zinc-900/80 border-b border-[#E6E8EC] dark:border-[#232836] text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                 <tr>
                   <th className="py-3 px-4">Empresa</th>

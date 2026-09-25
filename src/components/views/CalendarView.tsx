@@ -195,7 +195,7 @@ export const CalendarView: React.FC = () => {
         </div>
 
         {/* Right Side: Channel Badge & Direct Action Trigger */}
-        <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800/60 shrink-0">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800/60 w-full sm:w-auto shrink-0">
           {/* Channel Indicator */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] bg-zinc-100 dark:bg-zinc-800 text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
             {getChannelIcon(action.channel)}
@@ -251,12 +251,13 @@ export const CalendarView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant="primary"
             size="sm"
             onClick={() => setActiveNav('today')}
             icon={<Play className="w-3.5 h-3.5 fill-current" />}
+            className="w-full sm:w-auto"
           >
             Executar Turno de Hoje
           </Button>

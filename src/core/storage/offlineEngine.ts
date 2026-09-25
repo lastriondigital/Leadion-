@@ -1,10 +1,11 @@
 /**
  * LEADION OFFLINE-FIRST STORAGE & SYNC ENGINE
- * Garante que nenhuma empresa, script, funil, atividade ou configuração seja perdida.
- * Funciona 100% offline, enfileira mutações locais e sincroniza quando a conexão é restabelecida.
+ * Garante funcionamento 100% offline, persistência estruturada em IndexedDB e sincronização segura com Supabase.
  */
 
-export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'error';
+import { idbGet, idbPut, idbDelete, idbGetAll, idbClear, STORES } from './indexedDB';
+
+export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'pending' | 'error';
 
 export type EntityType = 
   | 'company' 
@@ -20,14 +21,18 @@ export type EntityType =
 export type MutationOperation = 'CREATE' | 'UPDATE' | 'DELETE';
 
 export interface OfflineMutation {
-  id: string;
-  entityType: EntityType;
+  id: string; // operation_id
+  entityType: EntityType; // entity
+  entityId: string; // entity_id
   operation: MutationOperation;
-  entityId: string;
   payload: any;
-  timestamp: string;
+  timestamp: string; // created_at
+  createdAt: string;
+  retryCount: number;
+  status: 'pending' | 'processing' | 'failed' | 'synced';
   version: number;
   deviceId: string;
+  deletedAt?: string | null;
 }
 
 export interface SyncConflict {
@@ -48,48 +53,6 @@ export interface SyncConflict {
   resolutionStrategy?: 'keep_local' | 'keep_remote' | 'custom_merge';
 }
 
-export interface HistoricalPriceSnapshot {
-  serviceId: string;
-  serviceName: string;
-  serviceVersion: number;
-  currency: string;
-  myPrice: number;
-  marketMinPrice?: number;
-  marketMaxPrice?: number;
-  capturedAt: string;
-  country: string;
-}
-
-export interface HistoricalScriptSnapshot {
-  scriptId: string;
-  scriptName: string;
-  scriptVersion: number;
-  channel: string;
-  renderedContent: string;
-  hook?: string;
-  valueProposition?: string;
-  cta?: string;
-  dispatchedAt: string;
-}
-
-export interface HistoricalStageSnapshot {
-  funnelId: string;
-  funnelName: string;
-  stageId: string;
-  stageName: string;
-  order: number;
-  transitionedAt: string;
-}
-
-export interface HistoricalQualificationSnapshot {
-  questionId: string;
-  questionText: string;
-  selectedOptionKey: string;
-  selectedOptionText: string;
-  scoreAwarded: number;
-  evaluatedAt: string;
-}
-
 const STORAGE_KEYS = {
   DEVICE_ID: 'leadion_device_id',
   DEVICE_NAME: 'leadion_device_name',
@@ -100,13 +63,28 @@ const STORAGE_KEYS = {
 };
 
 /**
+ * Gera um UUID seguro v4 usando crypto.randomUUID ou fallback robusto
+ */
+export function generateSecureUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback RFC4122 v4
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Obtém ou inicializa o identificador único deste dispositivo/navegador
  */
 export function getOrCreateDeviceId(): string {
   if (typeof window === 'undefined') return 'server-device-id';
   let devId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
   if (!devId) {
-    devId = 'dev-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
+    devId = 'dev-' + generateSecureUUID();
     localStorage.setItem(STORAGE_KEYS.DEVICE_ID, devId);
   }
   return devId;
@@ -126,7 +104,7 @@ export function getDeviceName(): string {
     else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) platform = 'Dispositivo iOS';
     else if (userAgent.includes('Android')) platform = 'Android';
     else if (userAgent.includes('Linux')) platform = 'Linux';
-    name = `${platform} (${getOrCreateDeviceId().slice(-4)})`;
+    name = `${platform} (${getOrCreateDeviceId().slice(-6)})`;
     localStorage.setItem(STORAGE_KEYS.DEVICE_NAME, name);
   }
   return name;
@@ -153,10 +131,17 @@ export function loadPendingQueue(): OfflineMutation[] {
 export function savePendingQueue(queue: OfflineMutation[]): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.PENDING_QUEUE, JSON.stringify(queue));
+  
+  // Persiste em background no IndexedDB
+  try {
+    idbClear(STORES.SYNC_QUEUE).then(() => {
+      queue.forEach((item) => idbPut(STORES.SYNC_QUEUE, item));
+    }).catch(() => {});
+  } catch {}
 }
 
 /**
- * Enfileira uma mutação offline de forma atômica
+ * Enfileira uma mutação offline com estrutura de auditoria completa
  */
 export function enqueueOfflineMutation(
   entityType: EntityType,
@@ -166,30 +151,42 @@ export function enqueueOfflineMutation(
   version: number = 1
 ): OfflineMutation {
   const queue = loadPendingQueue();
+  const now = new Date().toISOString();
+  
   const mutation: OfflineMutation = {
-    id: 'mut-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+    id: 'op-' + generateSecureUUID(),
     entityType,
-    operation,
     entityId,
+    operation,
     payload,
-    timestamp: new Date().toISOString(),
+    timestamp: now,
+    createdAt: now,
+    retryCount: 0,
+    status: 'pending',
     version,
     deviceId: getOrCreateDeviceId(),
+    deletedAt: operation === 'DELETE' ? now : null,
   };
 
-  // Se já houver mutação para a mesma entidade na fila, coalescemos inteligentemente
+  // Se for UPDATE e já existir UPDATE na fila para a mesma entidade, mesclamos
   const existingIdx = queue.findIndex(
     (m) => m.entityId === entityId && m.entityType === entityType && m.operation === operation
   );
 
   if (existingIdx >= 0 && operation === 'UPDATE') {
-    // Mescla payload preservando histórico
     queue[existingIdx] = {
       ...queue[existingIdx],
       payload: { ...queue[existingIdx].payload, ...payload },
       timestamp: mutation.timestamp,
+      createdAt: mutation.timestamp,
       version: Math.max(queue[existingIdx].version, version) + 1,
     };
+  } else if (existingIdx >= 0 && operation === 'DELETE') {
+    // Se foi deletado, remove qualquer criação ou atualização pendente anterior e coloca apenas o DELETE
+    const filtered = queue.filter((m) => !(m.entityId === entityId && m.entityType === entityType));
+    filtered.push(mutation);
+    savePendingQueue(filtered);
+    return mutation;
   } else {
     queue.push(mutation);
   }
@@ -204,6 +201,7 @@ export function enqueueOfflineMutation(
 export function dequeueOfflineMutation(mutationId: string): void {
   const queue = loadPendingQueue().filter((m) => m.id !== mutationId);
   savePendingQueue(queue);
+  idbDelete(STORES.SYNC_QUEUE, mutationId).catch(() => {});
 }
 
 /**
@@ -212,6 +210,7 @@ export function dequeueOfflineMutation(mutationId: string): void {
 export function clearPendingQueue(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEYS.PENDING_QUEUE);
+  idbClear(STORES.SYNC_QUEUE).catch(() => {});
 }
 
 /**
@@ -234,22 +233,25 @@ export function loadSyncConflicts(): SyncConflict[] {
 export function saveSyncConflicts(conflicts: SyncConflict[]): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.CONFLICTS, JSON.stringify(conflicts));
+  try {
+    idbClear(STORES.SYNC_CONFLICTS).then(() => {
+      conflicts.forEach((c) => idbPut(STORES.SYNC_CONFLICTS, c));
+    }).catch(() => {});
+  } catch {}
 }
 
 /**
  * Registra um conflito detectado (quando nuvem e dispositivo local têm alterações divergentes)
- * Regra de ouro: NÃO SOBRESCREVER SILENCIOSAMENTE!
  */
 export function recordSyncConflict(conflict: Omit<SyncConflict, 'id' | 'detectedAt' | 'resolved'>): SyncConflict {
   const conflicts = loadSyncConflicts();
   const newConflict: SyncConflict = {
     ...conflict,
-    id: 'conf-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+    id: 'conf-' + generateSecureUUID(),
     detectedAt: new Date().toISOString(),
     resolved: false,
   };
 
-  // Substitui se já houver conflito não resolvido para este ID
   const filtered = conflicts.filter((c) => c.entityId !== conflict.entityId || c.resolved);
   filtered.push(newConflict);
   saveSyncConflicts(filtered);
@@ -287,14 +289,13 @@ export function detectFieldConflicts(
   fieldsToCheck?: string[]
 ): string[] {
   const differingFields: string[] = [];
-  const keys = fieldsToCheck || Array.from(new Set([...Object.keys(localObj), ...Object.keys(remoteObj)]));
+  const keys = fieldsToCheck || Array.from(new Set([...Object.keys(localObj || {}), ...Object.keys(remoteObj || {})]));
 
   for (const key of keys) {
-    // Ignora metadados internos de sync
-    if (['updatedAt', 'version', 'deviceId', 'lastSyncedAt'].includes(key)) continue;
+    if (['updatedAt', 'version', 'deviceId', 'lastSyncedAt', 'sync_status', 'synced_at'].includes(key)) continue;
 
-    const valLocal = JSON.stringify(localObj[key]);
-    const valRemote = JSON.stringify(remoteObj[key]);
+    const valLocal = JSON.stringify(localObj?.[key]);
+    const valRemote = JSON.stringify(remoteObj?.[key]);
 
     if (valLocal !== valRemote) {
       differingFields.push(key);

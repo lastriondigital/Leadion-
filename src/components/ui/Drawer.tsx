@@ -53,18 +53,18 @@ export const Drawer: React.FC<DrawerProps> = ({
         aria-hidden="true"
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
         <div
-          className={`w-screen ${widthClasses[width]} bg-white dark:bg-[#141720] border-l border-[#E6E8EC] dark:border-[#232836] shadow-2xl flex flex-col animate-in slide-in-from-right duration-200`}
+          className={`w-full sm:w-screen ${widthClasses[width]} max-w-full bg-white dark:bg-[#141720] border-l border-[#E6E8EC] dark:border-[#232836] shadow-2xl flex flex-col animate-in slide-in-from-right duration-200`}
         >
           {/* Header */}
-          <div className="p-5 sm:p-6 border-b border-[#E6E8EC]/80 dark:border-[#232836]/80 flex items-start justify-between shrink-0 bg-zinc-50/50 dark:bg-[#111319]/50">
-            <div className="min-w-0 pr-4">
+          <div className="p-4 sm:p-6 border-b border-[#E6E8EC]/80 dark:border-[#232836]/80 flex items-start justify-between shrink-0 bg-zinc-50/50 dark:bg-[#111319]/50">
+            <div className="min-w-0 pr-3">
               <div className="text-base sm:text-lg font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
                 {title}
               </div>
               {subtitle && (
-                <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-words">
                   {subtitle}
                 </div>
               )}
@@ -79,13 +79,13 @@ export const Drawer: React.FC<DrawerProps> = ({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 min-w-0">
             {children}
           </div>
 
           {/* Footer */}
           {footer && (
-            <div className="p-4 sm:p-5 bg-zinc-50 dark:bg-[#111319] border-t border-[#E6E8EC]/80 dark:border-[#232836]/80 shrink-0">
+            <div className="p-3.5 sm:p-5 bg-zinc-50 dark:bg-[#111319] border-t border-[#E6E8EC]/80 dark:border-[#232836]/80 shrink-0">
               {footer}
             </div>
           )}

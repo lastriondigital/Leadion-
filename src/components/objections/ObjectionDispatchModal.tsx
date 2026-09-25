@@ -182,17 +182,17 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
         
         {/* Banner do Lead Selecionado */}
         <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#635BFF]/10 text-[#635BFF] flex items-center justify-center font-bold">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#635BFF]/10 text-[#635BFF] flex items-center justify-center font-bold shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-400 font-semibold uppercase">Lead em Atendimento:</span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-zinc-400 font-semibold uppercase shrink-0">Lead em Atendimento:</span>
                 <select
                   value={selectedCompanyId}
                   onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs font-bold text-zinc-900 dark:text-zinc-100"
+                  className="max-w-full px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs font-bold text-zinc-900 dark:text-zinc-100"
                 >
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -201,10 +201,10 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
                   ))}
                 </select>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 flex items-center gap-2">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 flex flex-wrap items-center gap-2">
                 <span>{activeCompany?.city || 'Localidade'} · {activeCompany?.country || 'Moçambique'}</span>
                 <span>•</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium break-all">
                   {targetPhone ? `Tel/WA: ${targetPhone}` : 'Sem telefone salvo'}
                 </span>
               </p>
@@ -212,14 +212,14 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
           </div>
 
           {!targetPhone && (
-            <div className="flex items-center gap-2">
-              <Phone className="w-3.5 h-3.5 text-amber-500" />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Phone className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               <input
                 type="text"
                 placeholder="Digitar WhatsApp (ex: +258 84...)"
                 value={manualPhone}
                 onChange={(e) => setManualPhone(e.target.value)}
-                className="px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 text-xs bg-amber-50/50 dark:bg-amber-950/30 text-zinc-900 dark:text-zinc-100"
+                className="w-full sm:w-auto px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 text-xs bg-amber-50/50 dark:bg-amber-950/30 text-zinc-900 dark:text-zinc-100"
               />
             </div>
           )}
@@ -229,12 +229,12 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
         <div className="space-y-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               1. Qual objeção o lead apresentou?
             </label>
 
             {/* Busca rápida */}
-            <div className="relative w-full sm:w-60">
+            <div className="relative w-full sm:w-60 min-w-0">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
@@ -247,7 +247,7 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
           </div>
 
           {/* Grade de Botões de Objeções */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             {filteredObjections.map((obj) => {
               const isSelected = selectedObjectionId === obj.id;
               return (
@@ -261,9 +261,9 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
                       : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span className="text-xs font-bold truncate">{obj.name}</span>
-                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 shrink-0">
                       {obj.category}
                     </span>
                   </div>
@@ -285,7 +285,7 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
                 <span className="font-bold text-amber-950 dark:text-amber-200">
                   O que o lead realmente quer dizer:
                 </span>
-                <p className="text-amber-900/90 dark:text-amber-300 italic mt-0.5">
+                <p className="text-amber-900/90 dark:text-amber-300 italic mt-0.5 break-words">
                   &ldquo;{currentObjection.description}&rdquo;
                 </p>
               </div>
@@ -310,14 +310,14 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
                           setSelectedSequenceId(seq.id);
                           setSelectedStepIndex(0);
                         }}
-                        className={`p-2.5 rounded-lg border text-left text-xs transition-all flex items-center justify-between ${
+                        className={`p-2.5 rounded-lg border text-left text-xs transition-all flex items-center justify-between gap-2 ${
                           isSelected
                             ? 'border-[#635BFF] bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs'
                             : 'border-amber-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/60 text-zinc-700 dark:text-zinc-300 hover:bg-white'
                         }`}
                       >
-                        <div>
-                          <div className="font-bold text-xs">{seq.name}</div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs truncate">{seq.name}</div>
                           <div className="text-[10px] text-zinc-500 line-clamp-1">{seq.description}</div>
                         </div>
                         {isSelected && <CheckCircle2 className="w-4 h-4 text-[#635BFF] shrink-0 ml-2" />}
@@ -334,11 +334,11 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
         {currentSequence && currentSequence.steps.length > 0 && (
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#635BFF]" />
+              <Layers className="w-3.5 h-3.5 text-[#635BFF] shrink-0" />
               3. Selecione a etapa da conversa que deseja enviar agora:
             </label>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
               {currentSequence.steps.map((st, idx) => {
                 const isSelected = selectedStepIndex === idx;
                 const isReaction = st.stepType === 'reaction';
@@ -347,7 +347,7 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
                     key={st.id || idx}
                     type="button"
                     onClick={() => setSelectedStepIndex(idx)}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition-all relative flex flex-col justify-between ${
+                    className={`p-2.5 rounded-xl border text-left text-xs transition-all relative flex flex-col justify-between gap-1 ${
                       isSelected
                         ? 'border-[#635BFF] bg-[#635BFF]/10 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs ring-1 ring-[#635BFF]'
                         : isReaction
@@ -364,7 +364,7 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
                       </span>
                     </div>
                     <span className="text-xs font-semibold line-clamp-1">{st.name}</span>
-                    <span className="text-[9px] uppercase font-bold text-zinc-400 mt-1">
+                    <span className="text-[9px] uppercase font-bold text-zinc-400 mt-1 truncate">
                       {st.stepType === 'response_1' && 'Primeiro Desarme'}
                       {st.stepType === 'reaction' && 'Nova Reação'}
                       {st.stepType === 'response_2' && 'Aprofundamento'}
@@ -380,9 +380,9 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
 
         {/* 4. PREVISÃO & EDIÇÃO DA RESPOSTA PREPARADA */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               4. Mensagem Preparada para {activeCompany?.name} (Edição Livre):
             </label>
             <button
@@ -402,28 +402,30 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
             className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#635BFF] font-sans leading-relaxed"
           />
 
-          <div className="flex items-center justify-between text-[11px] text-zinc-400">
+          <div className="flex flex-wrap items-center justify-between text-[11px] text-zinc-400 gap-1">
             <span>Variáveis substituídas automaticamente com os dados da empresa.</span>
             <span>{customMessage.length} caracteres</span>
           </div>
         </div>
 
         {/* 5. AÇÕES DO FOOTER COM [ABRIR WHATSAPP] */}
-        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
           <Button
             type="button"
             variant="ghost"
             onClick={onClose}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
               onClick={handleCopy}
               icon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              className="w-full sm:w-auto text-xs"
             >
               {copied ? 'Copiado' : 'Apenas Copiar'}
             </Button>
@@ -432,10 +434,11 @@ export const ObjectionDispatchModal: React.FC<ObjectionDispatchModalProps> = ({
               type="button"
               variant="primary"
               onClick={handleOpenWhatsApp}
-              className="bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold shadow-md"
+              className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold shadow-md text-xs sm:text-sm"
               icon={<Send className="w-4 h-4" />}
             >
-              [ABRIR WHATSAPP COM RESPOSTA PREPARADA]
+              <span className="hidden sm:inline">[ABRIR WHATSAPP COM RESPOSTA PREPARADA]</span>
+              <span className="sm:hidden">Abrir WhatsApp com Resposta</span>
             </Button>
           </div>
         </div>

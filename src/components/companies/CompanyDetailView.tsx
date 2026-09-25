@@ -720,12 +720,12 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company: i
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveTab('scripts')}
-                className="shrink-0 text-xs"
+                className="text-xs"
                 icon={<Sparkles className="w-3.5 h-3.5 text-[#635BFF]" />}
               >
                 Ver Scripts
@@ -734,7 +734,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company: i
                 variant="primary"
                 size="sm"
                 onClick={() => openWhatsAppForCompany(company)}
-                className="shrink-0 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                 icon={<Send className="w-3.5 h-3.5" />}
               >
                 Disparar WhatsApp
@@ -1682,8 +1682,8 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company: i
                 className="w-full p-4 rounded-xl bg-white dark:bg-zinc-950 font-mono text-xs text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 leading-relaxed focus:outline-none"
               />
 
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-zinc-400">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <span className="text-[11px] text-zinc-400 break-words">
                   Destinatário: <strong className="text-zinc-700 dark:text-zinc-300">{primaryResponsible?.name || 'Recepção / Contato Geral'}</strong> ({company.whatsapp || company.phone || 'Sem telefone'})
                 </span>
                 <Button
@@ -1691,7 +1691,7 @@ export const CompanyDetailView: React.FC<CompanyDetailViewProps> = ({ company: i
                   size="sm"
                   onClick={() => openWhatsAppForCompany(company)}
                   icon={<Send className="w-3.5 h-3.5" />}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold w-full sm:w-auto shrink-0"
                 >
                   Disparar Mensagem Agora
                 </Button>

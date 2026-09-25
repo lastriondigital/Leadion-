@@ -512,11 +512,11 @@ export const ActionOutcomeModal: React.FC<ActionOutcomeModalProps> = ({
         </div>
 
         {/* Rodapé / Botões de Ação */}
-        <div className="flex items-center justify-between pt-2 border-t border-zinc-100">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-zinc-100">
           <button
             type="button"
             onClick={onClose}
-            className="text-xs text-zinc-500 hover:text-zinc-800 font-medium px-3 py-1.5 rounded-lg hover:bg-zinc-100 transition-colors"
+            className="w-full sm:w-auto text-xs text-zinc-500 hover:text-zinc-800 font-medium px-3 py-2 rounded-lg hover:bg-zinc-100 transition-colors text-center"
           >
             Cancelar
           </button>
@@ -525,7 +525,7 @@ export const ActionOutcomeModal: React.FC<ActionOutcomeModalProps> = ({
             variant="primary"
             size="sm"
             onClick={handleConfirm}
-            className="bg-[#635BFF] hover:bg-[#5248E5] text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 px-4 py-2"
+            className="w-full sm:w-auto bg-[#635BFF] hover:bg-[#5248E5] text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 px-4 py-2"
           >
             {selectedOutcome === 'objecao' ? (
               <>

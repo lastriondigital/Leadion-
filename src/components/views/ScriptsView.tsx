@@ -125,18 +125,18 @@ export const ScriptsView: React.FC = () => {
 
       {/* Navigation Tabs & Search Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap max-w-full pb-1">
           <button
             type="button"
             onClick={() => setActiveTab('sequence')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeTab === 'sequence'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
             }`}
           >
-            <Layers className="w-4 h-4 text-[#635BFF]" />
-            Sequência Completa de Cadência
+            <Layers className="w-4 h-4 text-[#635BFF] shrink-0" />
+            <span>Sequência Completa de Cadência</span>
             <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300 font-mono font-bold">
               {scriptsEntities.length}
             </span>
@@ -145,14 +145,14 @@ export const ScriptsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('library')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeTab === 'library'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
             }`}
           >
-            <BookOpen className="w-4 h-4 text-emerald-600" />
-            Biblioteca em Cartões
+            <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Biblioteca em Cartões</span>
           </button>
         </div>
 
@@ -267,7 +267,7 @@ export const ScriptsView: React.FC = () => {
               </div>
 
               {/* Bottom Actions */}
-              <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
+              <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => handleCopy(script.id, script.content)}
