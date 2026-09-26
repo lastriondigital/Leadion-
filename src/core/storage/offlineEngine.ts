@@ -3,9 +3,9 @@
  * Garante funcionamento 100% offline, persistência estruturada em IndexedDB e sincronização segura com Supabase.
  */
 
-import { idbGet, idbPut, idbDelete, idbGetAll, idbClear, STORES } from './indexedDB';
+import { idbPut, idbDelete, idbGetAll, idbClear, STORES } from './indexedDB';
 
-export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'pending' | 'error';
+export type SyncStatus = 'online' | 'offline' | 'syncing' | 'synced' | 'pending' | 'error';
 
 export type EntityType = 
   | 'company' 
@@ -21,15 +21,23 @@ export type EntityType =
 export type MutationOperation = 'CREATE' | 'UPDATE' | 'DELETE';
 
 export interface OfflineMutation {
-  id: string; // operation_id
-  entityType: EntityType; // entity
-  entityId: string; // entity_id
+  id: string;
+  entity: EntityType;
+  entityType: EntityType;
+  local_id: string;
+  remote_id?: string | null;
+  entityId: string;
   operation: MutationOperation;
   payload: any;
-  timestamp: string; // created_at
+  created_at: string;
+  updated_at: string;
+  timestamp: string;
   createdAt: string;
+  attempts: number;
   retryCount: number;
-  status: 'pending' | 'processing' | 'failed' | 'synced';
+  status: 'pending' | 'processing' | 'failed' | 'synced' | 'sync_error';
+  last_error?: string | null;
+  nextRetryAt?: number | null;
   version: number;
   deviceId: string;
   deletedAt?: string | null;
@@ -53,6 +61,9 @@ export interface SyncConflict {
   resolutionStrategy?: 'keep_local' | 'keep_remote' | 'custom_merge';
 }
 
+export const RETRY_BACKOFF_MS = [2000, 5000, 15000, 30000] as const;
+export const MAX_RETRY_ATTEMPTS = RETRY_BACKOFF_MS.length; // 4 tentativas
+
 const STORAGE_KEYS = {
   DEVICE_ID: 'leadion_device_id',
   DEVICE_NAME: 'leadion_device_name',
@@ -69,7 +80,6 @@ export function generateSecureUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // Fallback RFC4122 v4
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -82,12 +92,16 @@ export function generateSecureUUID(): string {
  */
 export function getOrCreateDeviceId(): string {
   if (typeof window === 'undefined') return 'server-device-id';
-  let devId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
-  if (!devId) {
-    devId = 'dev-' + generateSecureUUID();
-    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, devId);
+  try {
+    let devId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+    if (!devId) {
+      devId = 'dev-' + generateSecureUUID();
+      localStorage.setItem(STORAGE_KEYS.DEVICE_ID, devId);
+    }
+    return devId;
+  } catch {
+    return 'dev-local';
   }
-  return devId;
 }
 
 /**
@@ -95,30 +109,70 @@ export function getOrCreateDeviceId(): string {
  */
 export function getDeviceName(): string {
   if (typeof window === 'undefined') return 'Dispositivo Web';
-  let name = localStorage.getItem(STORAGE_KEYS.DEVICE_NAME);
-  if (!name) {
-    const userAgent = navigator.userAgent;
-    let platform = 'Navegador Web';
-    if (userAgent.includes('Macintosh')) platform = 'Mac';
-    else if (userAgent.includes('Windows')) platform = 'Windows PC';
-    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) platform = 'Dispositivo iOS';
-    else if (userAgent.includes('Android')) platform = 'Android';
-    else if (userAgent.includes('Linux')) platform = 'Linux';
-    name = `${platform} (${getOrCreateDeviceId().slice(-6)})`;
-    localStorage.setItem(STORAGE_KEYS.DEVICE_NAME, name);
+  try {
+    let name = localStorage.getItem(STORAGE_KEYS.DEVICE_NAME);
+    if (!name) {
+      const userAgent = navigator.userAgent;
+      let platform = 'Navegador Web';
+      if (userAgent.includes('Android')) platform = 'Android';
+      else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) platform = 'Dispositivo iOS';
+      else if (userAgent.includes('Macintosh')) platform = 'Mac';
+      else if (userAgent.includes('Windows')) platform = 'Windows PC';
+      else if (userAgent.includes('Linux')) platform = 'Linux';
+      name = `${platform} (${getOrCreateDeviceId().slice(-6)})`;
+      localStorage.setItem(STORAGE_KEYS.DEVICE_NAME, name);
+    }
+    return name;
+  } catch {
+    return 'Dispositivo Local';
   }
-  return name;
 }
 
 /**
- * Carrega a fila de mutações pendentes de sincronização
+ * Normaliza registro da fila para garantir todos os campos obrigatórios
+ */
+function normalizeMutation(raw: any): OfflineMutation {
+  const now = new Date().toISOString();
+  const entityType: EntityType = raw.entityType || raw.entity || 'company';
+  const entityId: string = raw.entityId || raw.local_id || raw.remote_id || generateSecureUUID();
+  const created = raw.created_at || raw.createdAt || raw.timestamp || now;
+  const attempts = typeof raw.attempts === 'number' ? raw.attempts : (typeof raw.retryCount === 'number' ? raw.retryCount : 0);
+
+  return {
+    id: raw.id || 'op-' + generateSecureUUID(),
+    entity: entityType,
+    entityType,
+    local_id: raw.local_id || entityId,
+    remote_id: raw.remote_id ?? null,
+    entityId,
+    operation: raw.operation || 'UPDATE',
+    payload: raw.payload ?? null,
+    created_at: created,
+    updated_at: raw.updated_at || raw.timestamp || created,
+    timestamp: raw.timestamp || raw.updated_at || created,
+    createdAt: created,
+    attempts,
+    retryCount: attempts,
+    status: raw.status || 'pending',
+    last_error: raw.last_error ?? null,
+    nextRetryAt: raw.nextRetryAt ?? null,
+    version: raw.version || 1,
+    deviceId: raw.deviceId || getOrCreateDeviceId(),
+    deletedAt: raw.deletedAt ?? (raw.operation === 'DELETE' ? created : null),
+  };
+}
+
+/**
+ * Carrega a fila de mutações pendentes de sincronização (síncrono para boot rápido + hidratação IndexedDB)
  */
 export function loadPendingQueue(): OfflineMutation[] {
   if (typeof window === 'undefined') return [];
-  const raw = localStorage.getItem(STORAGE_KEYS.PENDING_QUEUE);
-  if (!raw) return [];
   try {
-    return JSON.parse(raw);
+    const raw = localStorage.getItem(STORAGE_KEYS.PENDING_QUEUE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeMutation);
   } catch (err) {
     console.error('Erro ao ler fila offline:', err);
     return [];
@@ -126,73 +180,187 @@ export function loadPendingQueue(): OfflineMutation[] {
 }
 
 /**
- * Salva a fila de mutações pendentes
+ * Hidrata a fila de mutações a partir do IndexedDB (garante persistência mesmo se localStorage for limpo)
+ */
+export async function hydrateQueueFromIndexedDB(): Promise<OfflineMutation[]> {
+  try {
+    const idbItems = await idbGetAll<OfflineMutation>(STORES.SYNC_QUEUE);
+    const localItems = loadPendingQueue();
+    if (idbItems.length === 0 && localItems.length === 0) return [];
+
+    const map = new Map<string, OfflineMutation>();
+    for (const item of localItems) {
+      map.set(item.id, normalizeMutation(item));
+    }
+    for (const item of idbItems) {
+      const norm = normalizeMutation(item);
+      const existing = map.get(norm.id);
+      if (!existing || new Date(norm.updated_at).getTime() >= new Date(existing.updated_at).getTime()) {
+        map.set(norm.id, norm);
+      }
+    }
+
+    const merged = Array.from(map.values()).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    savePendingQueue(merged);
+    return merged;
+  } catch {
+    return loadPendingQueue();
+  }
+}
+
+/**
+ * Salva a fila de mutações pendentes no IndexedDB e localStorage
  */
 export function savePendingQueue(queue: OfflineMutation[]): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEYS.PENDING_QUEUE, JSON.stringify(queue));
-  
-  // Persiste em background no IndexedDB
+  const normalized = queue.map(normalizeMutation);
   try {
-    idbClear(STORES.SYNC_QUEUE).then(() => {
-      queue.forEach((item) => idbPut(STORES.SYNC_QUEUE, item));
-    }).catch(() => {});
+    localStorage.setItem(STORAGE_KEYS.PENDING_QUEUE, JSON.stringify(normalized));
+  } catch (e) {
+    console.warn('Aviso ao gravar fila no localStorage:', e);
+  }
+
+  // Persiste de forma confiável no IndexedDB
+  try {
+    idbClear(STORES.SYNC_QUEUE)
+      .then(() => Promise.all(normalized.map((item) => idbPut(STORES.SYNC_QUEUE, item))))
+      .catch(() => {});
   } catch {}
 }
 
 /**
- * Enfileira uma mutação offline com estrutura de auditoria completa
+ * Enfileira uma mutação offline com estrutura de auditoria completa (sync_queue)
  */
 export function enqueueOfflineMutation(
   entityType: EntityType,
   operation: MutationOperation,
   entityId: string,
   payload: any,
-  version: number = 1
+  version: number = 1,
+  remoteId?: string | null
 ): OfflineMutation {
   const queue = loadPendingQueue();
   const now = new Date().toISOString();
-  
+
   const mutation: OfflineMutation = {
     id: 'op-' + generateSecureUUID(),
+    entity: entityType,
     entityType,
+    local_id: entityId,
+    remote_id: remoteId ?? payload?.remote_id ?? null,
     entityId,
     operation,
     payload,
+    created_at: now,
+    updated_at: now,
     timestamp: now,
     createdAt: now,
+    attempts: 0,
     retryCount: 0,
     status: 'pending',
+    last_error: null,
+    nextRetryAt: null,
     version,
     deviceId: getOrCreateDeviceId(),
     deletedAt: operation === 'DELETE' ? now : null,
   };
 
-  // Se for UPDATE e já existir UPDATE na fila para a mesma entidade, mesclamos
-  const existingIdx = queue.findIndex(
-    (m) => m.entityId === entityId && m.entityType === entityType && m.operation === operation
-  );
-
-  if (existingIdx >= 0 && operation === 'UPDATE') {
-    queue[existingIdx] = {
-      ...queue[existingIdx],
-      payload: { ...queue[existingIdx].payload, ...payload },
-      timestamp: mutation.timestamp,
-      createdAt: mutation.timestamp,
-      version: Math.max(queue[existingIdx].version, version) + 1,
-    };
-  } else if (existingIdx >= 0 && operation === 'DELETE') {
-    // Se foi deletado, remove qualquer criação ou atualização pendente anterior e coloca apenas o DELETE
+  if (operation === 'DELETE') {
+    // Se o registro foi criado offline e ainda não foi sincronizado, mas já queremos manter o histórico da fila ou consolidar:
+    // Removemos mutações pendentes anteriores dessa mesma entidade e enfileiramos o DELETE
     const filtered = queue.filter((m) => !(m.entityId === entityId && m.entityType === entityType));
     filtered.push(mutation);
     savePendingQueue(filtered);
     return mutation;
-  } else {
-    queue.push(mutation);
   }
 
+  // Se for UPDATE e já existir CREATE ou UPDATE pendente na fila para a mesma entidade, atualizamos o payload
+  const existingIdx = queue.findIndex(
+    (m) => m.entityId === entityId && m.entityType === entityType && (m.operation === 'UPDATE' || m.operation === 'CREATE')
+  );
+
+  if (existingIdx >= 0 && operation === 'UPDATE') {
+    const prev = queue[existingIdx];
+    const mergedPayload =
+      prev.payload && typeof prev.payload === 'object' && payload && typeof payload === 'object'
+        ? { ...prev.payload, ...payload }
+        : payload ?? prev.payload;
+
+    queue[existingIdx] = {
+      ...prev,
+      payload: mergedPayload,
+      updated_at: now,
+      timestamp: now,
+      status: 'pending',
+      last_error: null,
+      nextRetryAt: null,
+      version: Math.max(prev.version, version) + 1,
+    };
+    savePendingQueue(queue);
+    return queue[existingIdx];
+  }
+
+  queue.push(mutation);
   savePendingQueue(queue);
   return mutation;
+}
+
+/**
+ * Registra falha de tentativa de sincronização com backoff progressivo (2s, 5s, 15s, 30s -> sync_error)
+ */
+export function recordMutationFailure(
+  mutationId: string,
+  errorMessage: string
+): (OfflineMutation & { nextDelayMs: number | null; exhausted: boolean }) | null {
+  const queue = loadPendingQueue();
+  const idx = queue.findIndex((m) => m.id === mutationId);
+  if (idx < 0) return null;
+
+  const current = queue[idx];
+  const nextAttempts = (current.attempts || 0) + 1;
+  const now = new Date().toISOString();
+
+  const exhausted = nextAttempts >= MAX_RETRY_ATTEMPTS;
+  const backoffDelay = exhausted
+    ? null
+    : RETRY_BACKOFF_MS[Math.min(nextAttempts - 1, RETRY_BACKOFF_MS.length - 1)];
+
+  const updated: OfflineMutation & { nextDelayMs: number | null; exhausted: boolean } = {
+    ...current,
+    attempts: nextAttempts,
+    retryCount: nextAttempts,
+    updated_at: now,
+    status: exhausted ? 'sync_error' : 'pending',
+    last_error: errorMessage,
+    lastError: errorMessage,
+    nextRetryAt: backoffDelay ? Date.now() + backoffDelay : null,
+    nextDelayMs: backoffDelay,
+    exhausted,
+  };
+
+  queue[idx] = updated;
+  savePendingQueue(queue);
+  return updated;
+}
+
+/**
+ * Reseta o contador de tentativas para permitir nova sincronização manual ou quando a conexão retorna
+ */
+export function resetMutationsForRetry(): OfflineMutation[] {
+  const queue = loadPendingQueue();
+  const now = new Date().toISOString();
+  const updated = queue.map((m) => ({
+    ...m,
+    status: 'pending' as const,
+    attempts: 0,
+    retryCount: 0,
+    nextRetryAt: null,
+    updated_at: now,
+  }));
+  savePendingQueue(updated);
+  return updated;
 }
 
 /**
@@ -222,8 +390,27 @@ export function loadSyncConflicts(): SyncConflict[] {
   if (!raw) return [];
   try {
     return JSON.parse(raw);
-  } catch (err) {
+  } catch {
     return [];
+  }
+}
+
+/**
+ * Hidrata conflitos do IndexedDB
+ */
+export async function hydrateConflictsFromIndexedDB(): Promise<SyncConflict[]> {
+  try {
+    const idbItems = await idbGetAll<SyncConflict>(STORES.SYNC_CONFLICTS);
+    const localItems = loadSyncConflicts();
+    if (idbItems.length === 0 && localItems.length === 0) return [];
+    const map = new Map<string, SyncConflict>();
+    localItems.forEach((c) => map.set(c.id, c));
+    idbItems.forEach((c) => map.set(c.id, c));
+    const merged = Array.from(map.values());
+    saveSyncConflicts(merged);
+    return merged;
+  } catch {
+    return loadSyncConflicts();
   }
 }
 
@@ -232,11 +419,13 @@ export function loadSyncConflicts(): SyncConflict[] {
  */
 export function saveSyncConflicts(conflicts: SyncConflict[]): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEYS.CONFLICTS, JSON.stringify(conflicts));
   try {
-    idbClear(STORES.SYNC_CONFLICTS).then(() => {
-      conflicts.forEach((c) => idbPut(STORES.SYNC_CONFLICTS, c));
-    }).catch(() => {});
+    localStorage.setItem(STORAGE_KEYS.CONFLICTS, JSON.stringify(conflicts));
+  } catch {}
+  try {
+    idbClear(STORES.SYNC_CONFLICTS)
+      .then(() => Promise.all(conflicts.map((c) => idbPut(STORES.SYNC_CONFLICTS, c))))
+      .catch(() => {});
   } catch {}
 }
 
@@ -292,7 +481,7 @@ export function detectFieldConflicts(
   const keys = fieldsToCheck || Array.from(new Set([...Object.keys(localObj || {}), ...Object.keys(remoteObj || {})]));
 
   for (const key of keys) {
-    if (['updatedAt', 'version', 'deviceId', 'lastSyncedAt', 'sync_status', 'synced_at'].includes(key)) continue;
+    if (['updatedAt', 'updated_at', 'createdAt', 'created_at', 'version', 'deviceId', 'device_id', 'lastSyncedAt', 'sync_status', 'synced_at', 'local_id', 'remote_id', 'deleted_at'].includes(key)) continue;
 
     const valLocal = JSON.stringify(localObj?.[key]);
     const valRemote = JSON.stringify(remoteObj?.[key]);

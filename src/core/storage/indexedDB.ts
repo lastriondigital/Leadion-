@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'leadion_offline_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const STORES = {
   ACCOUNTS: 'accounts',
@@ -17,6 +17,8 @@ export const STORES = {
   SERVICES: 'services',
   OBJECTIONS: 'objections',
   QUALIFICATIONS: 'qualifications',
+  SETTINGS: 'settings',
+  LEADS: 'leads',
   SYNC_QUEUE: 'sync_queue',
   SYNC_CONFLICTS: 'sync_conflicts',
 } as const;
@@ -90,7 +92,17 @@ export function openLeadionDB(): Promise<IDBDatabase> {
         db.createObjectStore(STORES.QUALIFICATIONS, { keyPath: 'id' });
       }
 
-      // 10. Fila de Mutações Offline
+      // 10. Configurações & Perfil Local
+      if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
+        db.createObjectStore(STORES.SETTINGS, { keyPath: 'id' });
+      }
+
+      // 11. Leads
+      if (!db.objectStoreNames.contains(STORES.LEADS)) {
+        db.createObjectStore(STORES.LEADS, { keyPath: 'id' });
+      }
+
+      // 12. Fila de Mutações Offline (sync_queue)
       if (!db.objectStoreNames.contains(STORES.SYNC_QUEUE)) {
         const store = db.createObjectStore(STORES.SYNC_QUEUE, { keyPath: 'id' });
         store.createIndex('entityType', 'entityType', { unique: false });
@@ -98,20 +110,29 @@ export function openLeadionDB(): Promise<IDBDatabase> {
         store.createIndex('createdAt', 'createdAt', { unique: false });
       }
 
-      // 11. Conflitos de Sincronização
+      // 13. Conflitos de Sincronização
       if (!db.objectStoreNames.contains(STORES.SYNC_CONFLICTS)) {
         db.createObjectStore(STORES.SYNC_CONFLICTS, { keyPath: 'id' });
       }
     };
 
     request.onsuccess = () => {
-      resolve(request.result);
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
     };
 
     request.onerror = () => {
       console.error('Falha ao abrir IndexedDB:', request.error);
       dbPromise = null;
       reject(request.error);
+    };
+
+    request.onblocked = () => {
+      console.warn('IndexedDB bloqueado por outra aba.');
     };
   });
 
@@ -167,6 +188,14 @@ export async function idbGetAll<T>(storeName: StoreName): Promise<T[]> {
 }
 
 /**
+ * Retorna apenas os registros ativos (ignorando tombstones de exclusão pendente)
+ */
+export async function idbGetAllActive<T extends Record<string, any>>(storeName: StoreName): Promise<T[]> {
+  const all = await idbGetAll<T>(storeName);
+  return all.filter((item) => !item?.deleted_at && item?.sync_status !== 'pending_delete');
+}
+
+/**
  * Insere ou atualiza um único registro
  */
 export async function idbPut<T>(storeName: StoreName, value: T): Promise<void> {
@@ -215,7 +244,27 @@ export async function idbBulkPut<T>(storeName: StoreName, items: T[]): Promise<v
 }
 
 /**
- * Remove um registro por chave
+ * Marca um registro como excluído localmente (Tombstone) até que a exclusão seja sincronizada com o Supabase
+ */
+export async function idbMarkTombstone(storeName: StoreName, key: string, fallbackRecord?: Record<string, any>): Promise<void> {
+  try {
+    const existing = await idbGet<Record<string, any>>(storeName, key);
+    const nowIso = new Date().toISOString();
+    const tombstone = {
+      ...(existing || fallbackRecord || { id: key }),
+      id: key,
+      deleted_at: nowIso,
+      sync_status: 'pending_delete',
+      updatedAt: nowIso,
+    };
+    await idbPut(storeName, tombstone);
+  } catch (err) {
+    console.warn(`[IndexedDB] Falha idbMarkTombstone(${storeName}, ${key}):`, err);
+  }
+}
+
+/**
+ * Remove definitivamente um registro por chave (usado após confirmação do DELETE no Supabase)
  */
 export async function idbDelete(storeName: StoreName, key: IDBValidKey): Promise<void> {
   try {

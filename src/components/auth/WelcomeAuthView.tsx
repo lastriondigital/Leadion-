@@ -78,6 +78,11 @@ export const WelcomeAuthView: React.FC = () => {
     e.preventDefault();
     setErrorMsg(null);
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setErrorMsg('Dispositivo sem conexão com a Internet. Conecte-se à rede para fazer login na nuvem ou utilize "Criar conta offline" para iniciar imediatamente.');
+      return;
+    }
+
     if (!loginEmail || !loginPassword) {
       setErrorMsg('Preencha seu e-mail e senha.');
       return;
@@ -112,6 +117,11 @@ export const WelcomeAuthView: React.FC = () => {
   const handleCreateOnlineSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setErrorMsg('Sem Internet para registrar conta na nuvem agora. Utilize "Criar conta offline" para operar normalmente e vincule à nuvem depois.');
+      return;
+    }
 
     if (!onlineFullName.trim()) {
       setErrorMsg('Informe seu nome completo.');

@@ -50,10 +50,13 @@ import {
   setLastSyncError, 
   getOrCreateDeviceId, 
   getDeviceName,
-  generateSecureUUID
+  generateSecureUUID,
+  hydrateQueueFromIndexedDB,
+  hydrateConflictsFromIndexedDB,
+  resetMutationsForRetry
 } from '../core/storage/offlineEngine';
 import { UserAccount, WorkspaceProfile } from '../core/types/account';
-import { idbGet, idbPut, idbBulkPut, idbDelete, idbClear, idbGetAll, STORES } from '../core/storage/indexedDB';
+import { idbGet, idbPut, idbBulkPut, idbDelete, idbClear, idbGetAll, idbGetAllActive, idbMarkTombstone, STORES } from '../core/storage/indexedDB';
 import { connectivityEngine } from '../core/storage/connectivityEngine';
 import { 
   getSupabaseClient,
@@ -475,6 +478,16 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-username', name);
     }
+    idbPut(STORES.SETTINGS, { id: 'profile_username', value: name, updatedAt: new Date().toISOString() }).catch(() => {});
+    setUserAccount((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, fullName: name, updatedAt: new Date().toISOString() };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('leadion_user_account', JSON.stringify(updated));
+      }
+      idbPut(STORES.ACCOUNTS, updated).catch(() => {});
+      return updated;
+    });
   }, []);
 
   const greeting = useMemo(() => {
@@ -484,10 +497,16 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     return `Boa noite, ${userName}`;
   }, [userName]);
 
-  // Supabase Auth State
+  // Supabase Auth State — NUNCA bloqueia a UI quando offline ou com conta local
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [authLoading, setAuthLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      if (!navigator.onLine) return false;
+      if (localStorage.getItem('leadion_user_account')) return false;
+    }
+    return false;
+  });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   const openAuthModal = useCallback(() => {
@@ -658,6 +677,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-scripts-v2', JSON.stringify(newScripts));
     }
+    idbBulkPut(STORES.SCRIPTS, newScripts).catch(() => {});
   }, []);
 
   // ==========================================
@@ -680,6 +700,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(questions));
     }
+    idbPut(STORES.QUALIFICATION, { id: 'qualification_questions', data: questions, updatedAt: new Date().toISOString() }).catch(() => {});
   }, []);
 
   const [qualificationAnswers, setQualificationAnswers] = useState<Record<string, Record<string, string>>>(() => {
@@ -703,10 +724,24 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(updated));
       }
-      // Persistência assíncrona no Supabase
-      saveQualificationAnswersToSupabase(updated, currentUser?.id).catch((err) => {
-        console.warn('Erro ao salvar respostas de qualificação no Supabase:', err);
-      });
+      idbPut(STORES.QUALIFICATION, { id: 'qualification_answers', data: updated, updatedAt: new Date().toISOString() }).catch(() => {});
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        enqueueOfflineMutation('qualification', 'UPDATE', companyId, updated);
+        setPendingMutations(loadPendingQueue());
+      } else {
+        saveQualificationAnswersToSupabase(updated, currentUser?.id)
+          .then((res) => {
+            if (!res.success) {
+              enqueueOfflineMutation('qualification', 'UPDATE', companyId, updated);
+              setPendingMutations(loadPendingQueue());
+            }
+          })
+          .catch(() => {
+            enqueueOfflineMutation('qualification', 'UPDATE', companyId, updated);
+            setPendingMutations(loadPendingQueue());
+          });
+      }
       return updated;
     });
     showToast({
@@ -722,9 +757,16 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(updated));
       }
-      saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch((err) => {
-        console.warn('Erro ao salvar perguntas de qualificação no Supabase:', err);
-      });
+      idbPut(STORES.QUALIFICATION, { id: 'qualification_questions', data: updated, updatedAt: new Date().toISOString() }).catch(() => {});
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        enqueueOfflineMutation('qualification', 'CREATE', q.id, updated);
+        setPendingMutations(loadPendingQueue());
+      } else {
+        saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch(() => {
+          enqueueOfflineMutation('qualification', 'CREATE', q.id, updated);
+          setPendingMutations(loadPendingQueue());
+        });
+      }
       return updated;
     });
     showToast({
@@ -740,9 +782,16 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(updated));
       }
-      saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch((err) => {
-        console.warn('Erro ao atualizar perguntas de qualificação no Supabase:', err);
-      });
+      idbPut(STORES.QUALIFICATION, { id: 'qualification_questions', data: updated, updatedAt: new Date().toISOString() }).catch(() => {});
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        enqueueOfflineMutation('qualification', 'UPDATE', q.id, updated);
+        setPendingMutations(loadPendingQueue());
+      } else {
+        saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch(() => {
+          enqueueOfflineMutation('qualification', 'UPDATE', q.id, updated);
+          setPendingMutations(loadPendingQueue());
+        });
+      }
       return updated;
     });
     showToast({
@@ -758,9 +807,16 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(updated));
       }
-      saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch((err) => {
-        console.warn('Erro ao remover pergunta de qualificação no Supabase:', err);
-      });
+      idbPut(STORES.QUALIFICATION, { id: 'qualification_questions', data: updated, updatedAt: new Date().toISOString() }).catch(() => {});
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        enqueueOfflineMutation('qualification', 'DELETE', id, updated);
+        setPendingMutations(loadPendingQueue());
+      } else {
+        saveQualificationQuestionsToSupabase(updated, currentUser?.id).catch(() => {
+          enqueueOfflineMutation('qualification', 'DELETE', id, updated);
+          setPendingMutations(loadPendingQueue());
+        });
+      }
       return updated;
     });
     showToast({
@@ -821,6 +877,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion_objections_library_v1', JSON.stringify(newEntities));
     }
+    idbBulkPut(STORES.OBJECTIONS, newEntities).catch(() => {});
   }, []);
 
   const [isObjectionBuilderModalOpen, setIsObjectionBuilderModalOpen] = useState(false);
@@ -858,7 +915,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     setIsObjectionModalOpen(true);
   }, [companies, openObjectionDispatchModal]);
 
-  // CRUD de Objeções
+  // CRUD de Objeções (Offline-First)
   const addObjection = useCallback((data: Omit<ObjectionEntity, 'id' | 'createdAt' | 'updatedAt'>): ObjectionEntity => {
     const nowIso = new Date().toISOString();
     const newObj: ObjectionEntity = {
@@ -869,19 +926,24 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [newObj, ...objectionsEntities];
     saveObjectionsEntities(updated);
+    idbPut(STORES.OBJECTIONS, newObj).catch(() => {});
 
-    // Persistência real no Supabase
-    upsertObjectionToSupabase(newObj, currentUser?.id)
-      .then((res) => {
-        if (!res.success) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enqueueOfflineMutation('objection', 'CREATE', newObj.id, newObj);
+      setPendingMutations(loadPendingQueue());
+    } else {
+      upsertObjectionToSupabase(newObj, currentUser?.id)
+        .then((res) => {
+          if (!res.success) {
+            enqueueOfflineMutation('objection', 'CREATE', newObj.id, newObj);
+            setPendingMutations(loadPendingQueue());
+          }
+        })
+        .catch(() => {
           enqueueOfflineMutation('objection', 'CREATE', newObj.id, newObj);
           setPendingMutations(loadPendingQueue());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('objection', 'CREATE', newObj.id, newObj);
-        setPendingMutations(loadPendingQueue());
-      });
+        });
+    }
 
     return newObj;
   }, [objectionsEntities, saveObjectionsEntities, currentUser]);
@@ -901,17 +963,24 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     saveObjectionsEntities(updated);
 
     if (targetUpdated) {
-      upsertObjectionToSupabase(targetUpdated, currentUser?.id)
-        .then((res) => {
-          if (!res.success) {
+      const finalObj = targetUpdated as ObjectionEntity;
+      idbPut(STORES.OBJECTIONS, finalObj).catch(() => {});
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        enqueueOfflineMutation('objection', 'UPDATE', id, updates);
+        setPendingMutations(loadPendingQueue());
+      } else {
+        upsertObjectionToSupabase(finalObj, currentUser?.id)
+          .then((res) => {
+            if (!res.success) {
+              enqueueOfflineMutation('objection', 'UPDATE', id, updates);
+              setPendingMutations(loadPendingQueue());
+            }
+          })
+          .catch(() => {
             enqueueOfflineMutation('objection', 'UPDATE', id, updates);
             setPendingMutations(loadPendingQueue());
-          }
-        })
-        .catch(() => {
-          enqueueOfflineMutation('objection', 'UPDATE', id, updates);
-          setPendingMutations(loadPendingQueue());
-        });
+          });
+      }
     }
   }, [objectionsEntities, saveObjectionsEntities, currentUser]);
 
@@ -928,33 +997,51 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [copy, ...objectionsEntities];
     saveObjectionsEntities(updated);
+    idbPut(STORES.OBJECTIONS, copy).catch(() => {});
 
-    upsertObjectionToSupabase(copy, currentUser?.id).catch(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       enqueueOfflineMutation('objection', 'CREATE', copy.id, copy);
       setPendingMutations(loadPendingQueue());
-    });
+    } else {
+      upsertObjectionToSupabase(copy, currentUser?.id).catch(() => {
+        enqueueOfflineMutation('objection', 'CREATE', copy.id, copy);
+        setPendingMutations(loadPendingQueue());
+      });
+    }
 
     return copy;
   }, [objectionsEntities, saveObjectionsEntities, currentUser]);
 
   const deleteObjection = useCallback((id: string): boolean => {
     const updated = objectionsEntities.filter((o) => o.id !== id);
-    saveObjectionsEntities(updated);
+    setObjectionsEntities(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion_objections_library_v1', JSON.stringify(updated));
+    }
+    // Tombstone local para exclusão offline segura
+    idbMarkTombstone(STORES.OBJECTIONS, id).catch(() => {});
 
-    deleteObjectionFromSupabase(id)
-      .then((res) => {
-        if (!res.success) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enqueueOfflineMutation('objection', 'DELETE', id, null);
+      setPendingMutations(loadPendingQueue());
+    } else {
+      deleteObjectionFromSupabase(id)
+        .then((res) => {
+          if (!res.success) {
+            enqueueOfflineMutation('objection', 'DELETE', id, null);
+            setPendingMutations(loadPendingQueue());
+          } else {
+            idbDelete(STORES.OBJECTIONS, id).catch(() => {});
+          }
+        })
+        .catch(() => {
           enqueueOfflineMutation('objection', 'DELETE', id, null);
           setPendingMutations(loadPendingQueue());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('objection', 'DELETE', id, null);
-        setPendingMutations(loadPendingQueue());
-      });
+        });
+    }
 
     return true;
-  }, [objectionsEntities, saveObjectionsEntities]);
+  }, [objectionsEntities]);
 
   // CRUD de Sequências / Mini-Funis em Objeções
   const addSequenceToObjection = useCallback((objectionId: string, seq: Omit<ObjectionSequence, 'id'>): ObjectionSequence | null => {
@@ -1099,6 +1186,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-funnels-v1', JSON.stringify(newFunnels));
     }
+    idbBulkPut(STORES.FUNNELS, newFunnels).catch(() => {});
   }, []);
 
   const [activeFunnelId, setActiveFunnelId] = useState<string>(() => {
@@ -1116,6 +1204,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-services-v2', JSON.stringify(newServices));
     }
+    idbBulkPut(STORES.SERVICES, newServices).catch(() => {});
   }, []);
 
   const [selectedLead, setSelectedLeadState] = useState<Lead | null>(null);
@@ -1147,6 +1236,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-leads', JSON.stringify(newLeads));
     }
+    idbBulkPut(STORES.LEADS, newLeads).catch(() => {});
   };
 
   const saveCompanies = (newCompanies: Company[]) => {
@@ -1154,6 +1244,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-companies', JSON.stringify(newCompanies));
     }
+    idbBulkPut(STORES.COMPANIES, newCompanies).catch(() => {});
     // Sync selectedCompany if it was updated or if selectedCompanyId is present
     if (selectedCompany) {
       const fresh = newCompanies.find((c) => c.id === selectedCompany.id);
@@ -1251,8 +1342,14 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       [city, state].filter(Boolean).join(', ') + (country ? (city || state ? ` - ${country}` : country) : '')
     );
 
+    const localId = companyData.local_id || companyData.id || generatedId;
+    const isOfflineNow = typeof navigator !== 'undefined' && !navigator.onLine;
+
     const newCompany: Company = {
       id: companyData.id || generatedId,
+      local_id: localId,
+      remote_id: companyData.remote_id,
+      sync_status: 'pending_sync',
       name: name,
       niche: companyData.niche?.trim() || companyData.segment?.trim() || '',
       country,
@@ -1318,45 +1415,74 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       activeLeadsCount: companyData.responsibles?.length || 0,
     };
 
+    // 1. Salva IMEDIATAMENTE no IndexedDB e atualiza a UI sem esperar rede (Requisito 6)
     const updated = [newCompany, ...companies];
     saveCompanies(updated);
+    idbPut(STORES.COMPANIES, newCompany).catch(() => {});
 
-    // Persistência real no Supabase
-    let savedCompany = newCompany;
-    try {
-      const res = await createCompanyInSupabase(newCompany, currentUser?.id);
-      if (res.success && res.company) {
-        savedCompany = res.company;
-        setCompanies((prev) => prev.map((c) => (c.id === newCompany.id ? savedCompany : c)));
-        if (typeof window !== 'undefined') {
-          const freshList = updated.map((c) => (c.id === newCompany.id ? savedCompany : c));
-          localStorage.setItem('leadion-companies', JSON.stringify(freshList));
-        }
-        setSyncStatus('synced');
-        setLastSyncTimestamp(new Date().toISOString());
-      } else {
-        enqueueOfflineMutation('company', 'CREATE', newCompany.id, newCompany);
-        setPendingMutations(loadPendingQueue());
-      }
-    } catch {
-      enqueueOfflineMutation('company', 'CREATE', newCompany.id, newCompany);
-      setPendingMutations(loadPendingQueue());
+    // 2. Adiciona à fila persistente sync_queue imediatamente como pending_sync
+    const queuedMutation = enqueueOfflineMutation('company', 'CREATE', newCompany.id, newCompany, {
+      localId,
+      remoteId: newCompany.remote_id,
+    });
+    setPendingMutations(loadPendingQueue());
+    if (isOfflineNow) {
+      setSyncStatus('offline');
+    } else {
+      setSyncStatus('pending');
     }
 
+    // 3. Feedback imediato para o usuário (UI nunca bloqueia esperando Supabase)
     showToast({
       type: 'success',
       title: 'Empresa Cadastrada',
-      message: `${savedCompany.name} foi adicionada ao pipeline com sucesso.`,
+      message: isOfflineNow
+        ? `${newCompany.name} salva localmente (sincronização pendente).`
+        : `${newCompany.name} foi adicionada ao pipeline com sucesso.`,
     });
 
-    return { success: true, company: savedCompany };
-  }, [companies, services, checkCompanyDuplicate, showToast, currentUser, userName, saveCompanies]);
+    // 4. Sincronização em background se houver rede disponível
+    if (!isOfflineNow) {
+      createCompanyInSupabase(newCompany, currentUser?.id)
+        .then((res) => {
+          if (res.success && res.company) {
+            const syncedCompany: Company = {
+              ...res.company,
+              local_id: localId,
+              remote_id: res.company.remote_id || res.company.id,
+              sync_status: 'synced',
+              synced_at: new Date().toISOString(),
+            };
+            dequeueOfflineMutation(queuedMutation.id);
+            setPendingMutations(loadPendingQueue());
+            setCompanies((prev) => {
+              const freshList = prev.map((c) => (c.id === newCompany.id ? syncedCompany : c));
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('leadion-companies', JSON.stringify(freshList));
+              }
+              return freshList;
+            });
+            idbPut(STORES.COMPANIES, syncedCompany).catch(() => {});
+            setSyncStatus(loadPendingQueue().length > 0 ? 'pending' : 'synced');
+            const nowIso = new Date().toISOString();
+            setLastSyncTimestamp(nowIso);
+            setLastSyncTimeState(nowIso);
+          }
+        })
+        .catch(() => {
+          // Já está na sync_queue, será sincronizada automaticamente quando a rede estabilizar
+        });
+    }
 
-  // Atualizar Empresa
+    return { success: true, company: newCompany };
+  }, [companies, services, checkCompanyDuplicate, showToast, currentUser, userName]);
+
+  // Atualizar Empresa (Offline-First Imediato)
   const updateCompany = useCallback((id: string, updates: Partial<Company>) => {
     const now = new Date();
     const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
     const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const isOfflineNow = typeof navigator !== 'undefined' && !navigator.onLine;
 
     setCompanies((prev) => {
       const updated = prev.map((c) => {
@@ -1391,6 +1517,8 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         const merged: Company = {
           ...c,
           ...updates,
+          local_id: c.local_id || c.id,
+          sync_status: 'pending_sync',
           timeline: updates.timeline || newTimeline,
           updatedAt: formattedDate,
           // Compatibilidade
@@ -1398,21 +1526,37 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
           icpScore: updates.score !== undefined ? updates.score : c.score,
         };
 
-        // Persistência real no Supabase
-        upsertCompanyToSupabase(merged, currentUser?.id)
-          .then((res) => {
-            if (!res.success) {
-              enqueueOfflineMutation('company', 'UPDATE', id, updates);
-              setPendingMutations(loadPendingQueue());
-            } else {
-              setSyncStatus('synced');
-              setLastSyncTimestamp(new Date().toISOString());
-            }
-          })
-          .catch(() => {
-            enqueueOfflineMutation('company', 'UPDATE', id, updates);
-            setPendingMutations(loadPendingQueue());
-          });
+        // 1. Salva imediatamente no IndexedDB e adiciona à fila
+        idbPut(STORES.COMPANIES, merged).catch(() => {});
+        const queuedMut = enqueueOfflineMutation('company', 'UPDATE', id, updates, {
+          localId: merged.local_id || id,
+          remoteId: merged.remote_id || id,
+        });
+        setPendingMutations(loadPendingQueue());
+
+        // 2. Sincroniza em background se houver Internet
+        if (!isOfflineNow) {
+          upsertCompanyToSupabase(merged, currentUser?.id)
+            .then((res) => {
+              if (res.success) {
+                dequeueOfflineMutation(queuedMut.id);
+                setPendingMutations(loadPendingQueue());
+                const syncedComp: Company = {
+                  ...merged,
+                  sync_status: 'synced',
+                  synced_at: new Date().toISOString(),
+                };
+                idbPut(STORES.COMPANIES, syncedComp).catch(() => {});
+                setSyncStatus(loadPendingQueue().length > 0 ? 'pending' : 'synced');
+                const nowIso = new Date().toISOString();
+                setLastSyncTimestamp(nowIso);
+                setLastSyncTimeState(nowIso);
+              }
+            })
+            .catch(() => {});
+        } else {
+          setSyncStatus('offline');
+        }
 
         return merged;
       });
@@ -1436,38 +1580,54 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     });
   }, [selectedCompany, showToast, currentUser]);
 
-  // Excluir Empresa
+  // Excluir Empresa (Com Tombstone Offline-First - Requisito 8)
   const deleteCompany = useCallback((id: string) => {
     const target = companies.find((c) => c.id === id);
     const updated = companies.filter((c) => c.id !== id);
-    saveCompanies(updated);
+    setCompanies(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-companies', JSON.stringify(updated));
+    }
 
     if (selectedCompany?.id === id) {
       setSelectedCompany(null);
     }
 
-    // Persistência real no Supabase
-    deleteCompanyFromSupabase(id)
-      .then((res) => {
-        if (!res.success) {
-          enqueueOfflineMutation('company', 'DELETE', id, null);
-          setPendingMutations(loadPendingQueue());
-        } else {
-          setSyncStatus('synced');
-          setLastSyncTimestamp(new Date().toISOString());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('company', 'DELETE', id, null);
-        setPendingMutations(loadPendingQueue());
-      });
+    // 1. Marca Tombstone no IndexedDB (deleted_at + sync_status = pending_delete)
+    idbMarkTombstone(STORES.COMPANIES, id).catch(() => {});
+
+    // 2. Enfileira operação DELETE na sync_queue
+    const queuedMut = enqueueOfflineMutation('company', 'DELETE', id, null, {
+      localId: target?.local_id || id,
+      remoteId: target?.remote_id || id,
+    });
+    setPendingMutations(loadPendingQueue());
+
+    // 3. Se online, executa DELETE no Supabase e após confirmação remove definitivamente o tombstone local
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      deleteCompanyFromSupabase(target?.remote_id || id)
+        .then((res) => {
+          if (res.success) {
+            dequeueOfflineMutation(queuedMut.id);
+            setPendingMutations(loadPendingQueue());
+            idbDelete(STORES.COMPANIES, id).catch(() => {});
+            setSyncStatus(loadPendingQueue().length > 0 ? 'pending' : 'synced');
+            const nowIso = new Date().toISOString();
+            setLastSyncTimestamp(nowIso);
+            setLastSyncTimeState(nowIso);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setSyncStatus('offline');
+    }
 
     showToast({
       type: 'info',
       title: 'Empresa Excluída',
       message: `${target?.name || 'A empresa'} foi removida do sistema.`,
     });
-  }, [companies, selectedCompany, showToast, saveCompanies]);
+  }, [companies, selectedCompany, showToast, setSelectedCompany]);
 
   // Arquivar Empresa
   const archiveCompany = useCallback((id: string) => {
@@ -1566,11 +1726,30 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     setCompanies((prev) => {
       const updated = prev.map((c) => {
         if (c.id !== companyId) return c;
-        return {
+        const merged: Company = {
           ...c,
+          sync_status: 'pending_sync',
           timeline: [newEvt, ...c.timeline],
           updatedAt: formattedDate,
         };
+        idbPut(STORES.COMPANIES, merged).catch(() => {});
+        const queuedMut = enqueueOfflineMutation('company', 'UPDATE', companyId, { timeline: merged.timeline, updatedAt: formattedDate }, {
+          localId: merged.local_id || companyId,
+          remoteId: merged.remote_id || companyId,
+        });
+        setPendingMutations(loadPendingQueue());
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+          upsertCompanyToSupabase(merged, currentUser?.id)
+            .then((res) => {
+              if (res.success) {
+                dequeueOfflineMutation(queuedMut.id);
+                setPendingMutations(loadPendingQueue());
+                idbPut(STORES.COMPANIES, { ...merged, sync_status: 'synced', synced_at: new Date().toISOString() }).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
+        return merged;
       });
 
       if (typeof window !== 'undefined') {
@@ -1593,9 +1772,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Evento Registrado',
       message: `Novo evento adicionado à timeline da empresa.`,
     });
-  }, [selectedCompany, showToast]);
+  }, [selectedCompany, showToast, currentUser]);
 
-  // Adicionar Atividade
+  // Adicionar Atividade (Offline-First)
   const addCompanyActivity = useCallback((
     companyId: string,
     activity: Omit<CompanyActivity, 'id' | 'createdAt'>
@@ -1613,11 +1792,30 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     setCompanies((prev) => {
       const updated = prev.map((c) => {
         if (c.id !== companyId) return c;
-        return {
+        const merged: Company = {
           ...c,
+          sync_status: 'pending_sync',
           activities: [newActivity, ...(c.activities || [])],
           updatedAt: formattedDate,
         };
+        idbPut(STORES.COMPANIES, merged).catch(() => {});
+        const queuedMut = enqueueOfflineMutation('company', 'UPDATE', companyId, { activities: merged.activities, updatedAt: formattedDate }, {
+          localId: merged.local_id || companyId,
+          remoteId: merged.remote_id || companyId,
+        });
+        setPendingMutations(loadPendingQueue());
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+          upsertCompanyToSupabase(merged, currentUser?.id)
+            .then((res) => {
+              if (res.success) {
+                dequeueOfflineMutation(queuedMut.id);
+                setPendingMutations(loadPendingQueue());
+                idbPut(STORES.COMPANIES, { ...merged, sync_status: 'synced', synced_at: new Date().toISOString() }).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
+        return merged;
       });
 
       if (typeof window !== 'undefined') {
@@ -1639,9 +1837,9 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       title: 'Atividade Criada',
       message: `Atividade agendada com sucesso.`,
     });
-  }, [selectedCompany, showToast]);
+  }, [selectedCompany, showToast, currentUser]);
 
-  // Alternar conclusão de atividade
+  // Alternar conclusão de atividade (Offline-First)
   const toggleCompanyActivity = useCallback((companyId: string, activityId: string) => {
     const now = new Date();
     const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
@@ -1658,10 +1856,28 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
             completedAt: nextCompleted ? formattedDate : undefined,
           };
         });
-        return {
+        const merged: Company = {
           ...c,
+          sync_status: 'pending_sync',
           activities: newActivities,
         };
+        idbPut(STORES.COMPANIES, merged).catch(() => {});
+        const queuedMut = enqueueOfflineMutation('company', 'UPDATE', companyId, { activities: newActivities }, {
+          localId: merged.local_id || companyId,
+          remoteId: merged.remote_id || companyId,
+        });
+        setPendingMutations(loadPendingQueue());
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+          upsertCompanyToSupabase(merged, currentUser?.id)
+            .then((res) => {
+              if (res.success) {
+                dequeueOfflineMutation(queuedMut.id);
+                setPendingMutations(loadPendingQueue());
+              }
+            })
+            .catch(() => {});
+        }
+        return merged;
       });
 
       if (typeof window !== 'undefined') {
@@ -1675,7 +1891,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
       return updated;
     });
-  }, [selectedCompany]);
+  }, [selectedCompany, currentUser]);
 
   // Lead Actions
   const executeLeadAction = useCallback((
@@ -1911,6 +2127,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('leadion-prospect-actions', JSON.stringify(newActions));
     }
+    idbBulkPut(STORES.ACTIONS, newActions).catch(() => {});
   }, []);
 
   // Modals for Actions
@@ -2031,21 +2248,32 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       hasPendingNextAction: true,
     };
 
-    // Save action
-    saveActions([newAction, ...actions.filter((a) => a.id !== newActionId)]);
+    // Save action immediately to IndexedDB & state
+    const actionWithSync = {
+      ...newAction,
+      local_id: newAction.id,
+      sync_status: 'pending_sync' as const,
+    };
+    saveActions([actionWithSync, ...actions.filter((a) => a.id !== newActionId)]);
+    idbPut(STORES.ACTIONS, actionWithSync).catch(() => {});
 
-    // Persistência real no Supabase
-    upsertActionToSupabase(newAction, currentUser?.id)
-      .then((res) => {
-        if (!res.success) {
-          enqueueOfflineMutation('action', 'CREATE', newAction.id, newAction);
-          setPendingMutations(loadPendingQueue());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('action', 'CREATE', newAction.id, newAction);
-        setPendingMutations(loadPendingQueue());
-      });
+    const queuedMut = enqueueOfflineMutation('action', 'CREATE', newAction.id, actionWithSync, {
+      localId: newAction.id,
+    });
+    setPendingMutations(loadPendingQueue());
+
+    // Sincroniza em background se houver rede
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      upsertActionToSupabase(actionWithSync, currentUser?.id)
+        .then((res) => {
+          if (res.success) {
+            dequeueOfflineMutation(queuedMut.id);
+            setPendingMutations(loadPendingQueue());
+            idbPut(STORES.ACTIONS, { ...actionWithSync, sync_status: 'synced', synced_at: new Date().toISOString() }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
 
     // Update associated company
     if (targetComp) {
@@ -2575,22 +2803,29 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
   const deleteScript = useCallback((id: string): boolean => {
     const filtered = scriptsEntities.filter((s) => s.id !== id);
-    saveScriptsEntities(filtered);
+    setScriptsEntities(filtered);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-scripts-v2', JSON.stringify(filtered));
+    }
+    idbMarkTombstone(STORES.SCRIPTS, id).catch(() => {});
 
-    deleteScriptFromSupabase(id)
-      .then((res) => {
-        if (!res.success) {
-          enqueueOfflineMutation('script', 'DELETE', id, null);
-          setPendingMutations(loadPendingQueue());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('script', 'DELETE', id, null);
-        setPendingMutations(loadPendingQueue());
-      });
+    const queuedMut = enqueueOfflineMutation('script', 'DELETE', id, null);
+    setPendingMutations(loadPendingQueue());
+
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      deleteScriptFromSupabase(id)
+        .then((res) => {
+          if (res.success) {
+            dequeueOfflineMutation(queuedMut.id);
+            setPendingMutations(loadPendingQueue());
+            idbDelete(STORES.SCRIPTS, id).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
 
     return true;
-  }, [scriptsEntities, saveScriptsEntities]);
+  }, [scriptsEntities]);
 
   const recordWhatsAppDispatch = useCallback((
     companyId: string,
@@ -2753,26 +2988,33 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   const deleteService = useCallback((id: string) => {
     const target = services.find((s) => s.id === id);
     const updated = services.filter((s) => s.id !== id);
-    saveServices(updated);
+    setServices(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-services-v2', JSON.stringify(updated));
+    }
+    idbMarkTombstone(STORES.SERVICES, id).catch(() => {});
 
-    deleteServiceFromSupabase(id)
-      .then((res) => {
-        if (!res.success) {
-          enqueueOfflineMutation('service', 'DELETE', id, null);
-          setPendingMutations(loadPendingQueue());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('service', 'DELETE', id, null);
-        setPendingMutations(loadPendingQueue());
-      });
+    const queuedMut = enqueueOfflineMutation('service', 'DELETE', id, null);
+    setPendingMutations(loadPendingQueue());
+
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      deleteServiceFromSupabase(id)
+        .then((res) => {
+          if (res.success) {
+            dequeueOfflineMutation(queuedMut.id);
+            setPendingMutations(loadPendingQueue());
+            idbDelete(STORES.SERVICES, id).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
 
     showToast({
       type: 'warning',
       title: 'Serviço Excluído',
       message: `${target?.name || 'Serviço'} removido do catálogo.`,
     });
-  }, [services, saveServices, showToast]);
+  }, [services, showToast]);
 
   const getServicePriceForCompanyCountry = useCallback((serviceId: string, country?: string): ServiceCountryPrice | null => {
     const s = services.find((item) => item.id === serviceId);
@@ -2916,22 +3158,29 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   const deleteFunnel = useCallback((id: string): boolean => {
     const target = funnels.find((f) => f.id === id);
     const remaining = funnels.filter((f) => f.id !== id);
-    saveFunnels(remaining);
+    setFunnels(remaining);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('leadion-funnels-v1', JSON.stringify(remaining));
+    }
     if (activeFunnelId === id) {
       setActiveFunnelId(remaining[0]?.id || '');
     }
+    idbMarkTombstone(STORES.FUNNELS, id).catch(() => {});
 
-    deleteFunnelFromSupabase(id)
-      .then((res) => {
-        if (!res.success) {
-          enqueueOfflineMutation('funnel', 'DELETE', id, null);
-          setPendingMutations(loadPendingQueue());
-        }
-      })
-      .catch(() => {
-        enqueueOfflineMutation('funnel', 'DELETE', id, null);
-        setPendingMutations(loadPendingQueue());
-      });
+    const queuedMut = enqueueOfflineMutation('funnel', 'DELETE', id, null);
+    setPendingMutations(loadPendingQueue());
+
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      deleteFunnelFromSupabase(id)
+        .then((res) => {
+          if (res.success) {
+            dequeueOfflineMutation(queuedMut.id);
+            setPendingMutations(loadPendingQueue());
+            idbDelete(STORES.FUNNELS, id).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
 
     showToast({
       type: 'warning',
@@ -2939,7 +3188,7 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       message: `O funil "${target?.name || ''}" foi removido permanentemente.`,
     });
     return true;
-  }, [funnels, activeFunnelId, saveFunnels, showToast]);
+  }, [funnels, activeFunnelId, showToast]);
 
   const addFunnelStage = useCallback((funnelId: string, stageData: Omit<FunnelStage, 'id' | 'order'>): FunnelStage => {
     let created: FunnelStage | null = null;
@@ -3192,8 +3441,15 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     setIsConflictModalOpen(true);
   }, []);
 
-  // Executa sincronização com Supabase / réplica remota real
+  const retryTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Executa sincronização com Supabase / réplica remota real com backoff progressivo (2s -> 5s -> 15s -> 30s)
   const triggerCloudSync = useCallback(async () => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setSyncStatus('offline');
       return;
@@ -3210,10 +3466,12 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
     setSyncStatus('syncing');
     try {
-      // 1. Processa mutações offline acumuladas na fila local
+      // 1. Processa mutações offline acumuladas na fila local (sync_queue)
       const queue = loadPendingQueue();
+      let hadMutationFailures = false;
+
       if (queue.length > 0) {
-        await processOfflineMutations(
+        const pushResult = await processOfflineMutations(
           queue,
           {
             companies,
@@ -3225,71 +3483,126 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
           },
           currentUser?.id
         );
-        setPendingMutations(loadPendingQueue());
+        const remainingQueue = loadPendingQueue();
+        setPendingMutations(remainingQueue);
+
+        if (pushResult.failedCount > 0) {
+          hadMutationFailures = true;
+          const failedItem = remainingQueue.find((m) => m.last_error || m.lastError);
+          if (failedItem) {
+            const errMsg = failedItem.last_error || failedItem.lastError || 'Falha ao sincronizar itens pendentes.';
+            setLastSyncError(errMsg);
+            setLastSyncErrorState(errMsg);
+          }
+          // Agendamento de retry com backoff progressivo (2s -> 5s -> 15s -> 30s)
+          if (pushResult.nextRetryDelayMs !== null && typeof navigator !== 'undefined' && navigator.onLine) {
+            retryTimeoutRef.current = setTimeout(() => {
+              triggerCloudSync().catch(() => {});
+            }, pushResult.nextRetryDelayMs);
+          }
+        }
       }
 
-      // 2. Puxa estado mais recente do banco PostgreSQL no Supabase
+      // 2. Puxa estado mais recente do banco no Supabase preservando alterações locais não sincronizadas
       const remote = await pullAllRemoteData();
       if (remote.hasRemoteData) {
+        const currentPendingIds = new Set(loadPendingQueue().map((m) => m.entityId || m.local_id));
         const cleanRemoteCompanies = (remote.companies || []).filter((c) => !isDemoCompany(c));
         const cleanRemoteActions = (remote.actions || []).filter((a) => !isDemoAction(a));
 
         if (cleanRemoteCompanies.length > 0) {
-          setCompanies(cleanRemoteCompanies);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('leadion-companies', JSON.stringify(cleanRemoteCompanies));
-          }
+          setCompanies((prevLocal) => {
+            const unsyncedLocals = prevLocal.filter(
+              (loc) =>
+                loc.sync_status === 'pending_sync' ||
+                currentPendingIds.has(loc.id) ||
+                !cleanRemoteCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
+            );
+            const remoteFiltered = cleanRemoteCompanies.filter(
+              (rem) => !unsyncedLocals.some((loc) => loc.id === rem.id || (loc.remote_id && loc.remote_id === rem.id))
+            );
+            const merged = [...unsyncedLocals, ...remoteFiltered];
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-companies', JSON.stringify(merged));
+            }
+            idbBulkPut(STORES.COMPANIES, merged).catch(() => {});
+            return merged;
+          });
         }
         if (cleanRemoteActions.length > 0) {
-          setActions(cleanRemoteActions);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('leadion-prospect-actions', JSON.stringify(cleanRemoteActions));
-          }
+          setActions((prevLocal) => {
+            const unsyncedLocals = prevLocal.filter(
+              (loc) => currentPendingIds.has(loc.id) || !cleanRemoteActions.some((rem) => rem.id === loc.id)
+            );
+            const remoteFiltered = cleanRemoteActions.filter(
+              (rem) => !unsyncedLocals.some((loc) => loc.id === rem.id)
+            );
+            const merged = [...unsyncedLocals, ...remoteFiltered];
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-prospect-actions', JSON.stringify(merged));
+            }
+            idbBulkPut(STORES.ACTIONS, merged).catch(() => {});
+            return merged;
+          });
         }
         if (remote.scripts.length > 0) {
           setScriptsEntities(remote.scripts);
           if (typeof window !== 'undefined') {
             localStorage.setItem('leadion-scripts-v2', JSON.stringify(remote.scripts));
           }
+          idbBulkPut(STORES.SCRIPTS, remote.scripts).catch(() => {});
         }
         if (remote.funnels.length > 0) {
           setFunnels(remote.funnels);
           if (typeof window !== 'undefined') {
             localStorage.setItem('leadion-funnels-v1', JSON.stringify(remote.funnels));
           }
+          idbBulkPut(STORES.FUNNELS, remote.funnels).catch(() => {});
         }
         if (remote.services.length > 0) {
           setServices(remote.services);
           if (typeof window !== 'undefined') {
             localStorage.setItem('leadion-services-v2', JSON.stringify(remote.services));
           }
+          idbBulkPut(STORES.SERVICES, remote.services).catch(() => {});
         }
         if (remote.objections.length > 0) {
           setObjectionsEntities(remote.objections);
           if (typeof window !== 'undefined') {
             localStorage.setItem('leadion_objections_library_v1', JSON.stringify(remote.objections));
           }
+          idbBulkPut(STORES.OBJECTIONS, remote.objections).catch(() => {});
         }
         if (remote.qualificationQuestions && remote.qualificationQuestions.length > 0) {
           setQualificationQuestions(remote.qualificationQuestions);
           if (typeof window !== 'undefined') {
             localStorage.setItem('leadion-qualification-questions-v1', JSON.stringify(remote.qualificationQuestions));
           }
+          idbPut(STORES.QUALIFICATION, { id: 'qualification_questions', data: remote.qualificationQuestions, updatedAt: new Date().toISOString() }).catch(() => {});
         }
         if (remote.qualificationAnswers && Object.keys(remote.qualificationAnswers).length > 0) {
           setQualificationAnswers(remote.qualificationAnswers);
           if (typeof window !== 'undefined') {
             localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(remote.qualificationAnswers));
           }
+          idbPut(STORES.QUALIFICATION, { id: 'qualification_answers', data: remote.qualificationAnswers, updatedAt: new Date().toISOString() }).catch(() => {});
         }
       }
 
-      const nowIso = new Date().toISOString();
-      setLastSyncTimestamp(nowIso);
-      setLastSyncTimeState(nowIso);
-      setLastSyncError(null);
-      setLastSyncErrorState(null);
-      setSyncStatus('synced');
+      const finalQueue = loadPendingQueue();
+      setPendingMutations(finalQueue);
+
+      if (hadMutationFailures) {
+        const hasExhausted = finalQueue.some((m) => m.status === 'failed');
+        setSyncStatus(hasExhausted ? 'error' : 'pending');
+      } else {
+        const nowIso = new Date().toISOString();
+        setLastSyncTimestamp(nowIso);
+        setLastSyncTimeState(nowIso);
+        setLastSyncError(null);
+        setLastSyncErrorState(null);
+        setSyncStatus(finalQueue.length > 0 ? 'pending' : 'synced');
+      }
     } catch (err: any) {
       setSyncStatus('error');
       const msg = err.message || 'Falha na sincronização com Supabase';
@@ -3299,14 +3612,149 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
   }, [companies, actions, scriptsEntities, funnels, services, objectionsEntities, currentUser]);
 
   // ----------------------------------------------------
-  // HYDRATAÇÃO INICIAL REAL DO SUPABASE + ESCUTA DE AUTH
+  // HYDRATAÇÃO LOCAL (INDEXEDDB) + SUPABASE EM BACKGROUND
   // ----------------------------------------------------
   React.useEffect(() => {
     let isMounted = true;
 
-    async function initializeSupabaseIntegration() {
+    async function hydrateFromLocalIndexedDB() {
       try {
-        // Diagnóstico seguro e sanitizado da conexão Supabase (sem expor credenciais)
+        const [
+          idbCompanies,
+          idbActions,
+          idbScripts,
+          idbFunnels,
+          idbServices,
+          idbObjections,
+          idbLeads,
+          idbAccounts,
+          idbWorkspaces,
+          idbQualQuestions,
+          idbQualAnswers,
+          hydratedQueue,
+          hydratedConflicts,
+        ] = await Promise.all([
+          idbGetAllActive<Company>(STORES.COMPANIES),
+          idbGetAllActive<ProspectAction>(STORES.ACTIONS),
+          idbGetAllActive<ScriptEntity>(STORES.SCRIPTS),
+          idbGetAllActive<FunnelEntity>(STORES.FUNNELS),
+          idbGetAllActive<ServiceEntity>(STORES.SERVICES),
+          idbGetAllActive<ObjectionEntity>(STORES.OBJECTIONS),
+          idbGetAllActive<Lead>(STORES.LEADS),
+          idbGetAll<UserAccount>(STORES.ACCOUNTS),
+          idbGetAll<WorkspaceProfile>(STORES.WORKSPACES),
+          idbGet<{ id: string; data: QualificationQuestion[] }>(STORES.QUALIFICATION, 'qualification_questions'),
+          idbGet<{ id: string; data: Record<string, Record<string, string>> }>(STORES.QUALIFICATION, 'qualification_answers'),
+          hydrateQueueFromIndexedDB(),
+          hydrateConflictsFromIndexedDB(),
+        ]);
+
+        if (!isMounted) return;
+
+        setPendingMutations(hydratedQueue);
+        setSyncConflicts(hydratedConflicts);
+
+        if (idbAccounts.length > 0 && !userAccount) {
+          const acc = idbAccounts[0];
+          setUserAccount(acc);
+          if (acc.fullName) setUserNameState(acc.fullName);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion_user_account', JSON.stringify(acc));
+          }
+        }
+        if (idbWorkspaces.length > 0 && !workspaceProfile) {
+          setWorkspaceProfile(idbWorkspaces[0]);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('leadion_workspace_profile', JSON.stringify(idbWorkspaces[0]));
+          }
+        }
+
+        const cleanIdbCompanies = idbCompanies.filter((c) => !isDemoCompany(c));
+        if (cleanIdbCompanies.length > 0) {
+          setCompanies((prev) => {
+            const map = new Map<string, Company>();
+            prev.forEach((c) => map.set(c.id, c));
+            cleanIdbCompanies.forEach((c) => map.set(c.id, c));
+            const merged = ensureCompanyFunnels(Array.from(map.values()));
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-companies', JSON.stringify(merged));
+            }
+            return merged;
+          });
+        } else if (companies.length > 0) {
+          idbBulkPut(STORES.COMPANIES, companies).catch(() => {});
+        }
+
+        const cleanIdbActions = idbActions.filter((a) => !isDemoAction(a));
+        if (cleanIdbActions.length > 0) {
+          setActions((prev) => {
+            const map = new Map<string, ProspectAction>();
+            prev.forEach((a) => map.set(a.id, a));
+            cleanIdbActions.forEach((a) => map.set(a.id, a));
+            const merged = Array.from(map.values());
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('leadion-prospect-actions', JSON.stringify(merged));
+            }
+            return merged;
+          });
+        } else if (actions.length > 0) {
+          idbBulkPut(STORES.ACTIONS, actions).catch(() => {});
+        }
+
+        if (idbScripts.length > 0) {
+          setScriptsEntities(idbScripts);
+        } else if (scriptsEntities.length > 0) {
+          idbBulkPut(STORES.SCRIPTS, scriptsEntities).catch(() => {});
+        }
+
+        if (idbFunnels.length > 0) {
+          setFunnels(idbFunnels);
+        } else if (funnels.length > 0) {
+          idbBulkPut(STORES.FUNNELS, funnels).catch(() => {});
+        }
+
+        if (idbServices.length > 0) {
+          setServices(idbServices);
+        } else if (services.length > 0) {
+          idbBulkPut(STORES.SERVICES, services).catch(() => {});
+        }
+
+        if (idbObjections.length > 0) {
+          setObjectionsEntities(idbObjections);
+        } else if (objectionsEntities.length > 0) {
+          idbBulkPut(STORES.OBJECTIONS, objectionsEntities).catch(() => {});
+        }
+
+        if (idbLeads.length > 0) {
+          setLeads(idbLeads.filter((l) => !isDemoLead(l)));
+        }
+
+        if (idbQualQuestions?.data && Array.isArray(idbQualQuestions.data)) {
+          setQualificationQuestions(idbQualQuestions.data);
+        }
+        if (idbQualAnswers?.data) {
+          setQualificationAnswers(idbQualAnswers.data);
+        }
+      } catch (err) {
+        console.warn('[OfflineDB] Hydratação local concluída com fallback:', err);
+      }
+    }
+
+    async function initializeSupabaseIntegration() {
+      // 1. Hidrata imediatamente do IndexedDB sem depender de rede
+      await hydrateFromLocalIndexedDB();
+      if (isMounted) {
+        setAuthLoading(false);
+      }
+
+      // 2. Se estiver offline, encerra aqui — nunca tenta bloquear com chamadas remotas
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        if (isMounted) setSyncStatus('offline');
+        return;
+      }
+
+      try {
+        // Diagnóstico seguro e não-bloqueante
         runSupabaseDiagnostics().catch(() => {});
 
         const session = await getCurrentSession();
@@ -3319,21 +3767,38 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
           setAuthLoading(false);
         }
 
-        // Purga ativa e segura de registros demo diretamente no Supabase
         const client = getSupabaseClient();
         if (client) {
-          purgeDemoDataFromSupabase(client).catch((e) => console.warn('Supabase purge:', e));
+          purgeDemoDataFromSupabase(client).catch(() => {});
         }
 
-        // Não sobrescreve dados locais se o usuário estiver usando Conta Local ou desconectado
         if (!session && (!userAccount || userAccount.accountType === 'local')) {
           return;
         }
 
-        // Puxa empresas diretamente do Supabase e dados remotos consolidados
+        // Processa fila pendente caso existam operações acumuladas antes do boot
+        const pendingAtBoot = loadPendingQueue();
+        if (pendingAtBoot.length > 0) {
+          await processOfflineMutations(
+            pendingAtBoot,
+            {
+              companies,
+              actions,
+              scripts: scriptsEntities,
+              funnels,
+              services,
+              objections: objectionsEntities,
+            },
+            session?.user?.id
+          );
+          if (isMounted) {
+            setPendingMutations(loadPendingQueue());
+          }
+        }
+
         const [remote, compRes] = await Promise.all([
           pullAllRemoteData(),
-          fetchCompaniesFromSupabase()
+          fetchCompaniesFromSupabase(),
         ]);
         if (!isMounted) return;
 
@@ -3342,12 +3807,13 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         const cleanRemoteActions = (remote.actions || []).filter((a) => !isDemoAction(a));
 
         if (compRes.success) {
-          // Preserva e mescla dados locais que ainda não existam no servidor
           setCompanies((prevLocal) => {
             const unsynced = prevLocal.filter(
-              (loc) => !cleanDbCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
+              (loc) =>
+                loc.sync_status === 'pending_sync' ||
+                !cleanDbCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
             );
-            const merged = [...cleanDbCompanies, ...unsynced];
+            const merged = [...unsynced, ...cleanDbCompanies.filter((rem) => !unsynced.some((u) => u.id === rem.id))];
             if (typeof window !== 'undefined') {
               localStorage.setItem('leadion-companies', JSON.stringify(merged));
             }
@@ -3357,9 +3823,11 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
         } else if (remote.hasRemoteData) {
           setCompanies((prevLocal) => {
             const unsynced = prevLocal.filter(
-              (loc) => !cleanRemoteCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
+              (loc) =>
+                loc.sync_status === 'pending_sync' ||
+                !cleanRemoteCompanies.some((rem) => rem.id === loc.id || (loc.remote_id && rem.id === loc.remote_id))
             );
-            const merged = [...cleanRemoteCompanies, ...unsynced];
+            const merged = [...unsynced, ...cleanRemoteCompanies.filter((rem) => !unsynced.some((u) => u.id === rem.id))];
             if (typeof window !== 'undefined') {
               localStorage.setItem('leadion-companies', JSON.stringify(merged));
             }
@@ -3370,34 +3838,43 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
 
         if (remote.hasRemoteData) {
           if (cleanRemoteActions.length > 0) {
-            setActions(cleanRemoteActions);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('leadion-prospect-actions', JSON.stringify(cleanRemoteActions));
-            }
+            setActions((prevLocal) => {
+              const unsynced = prevLocal.filter((loc) => !cleanRemoteActions.some((rem) => rem.id === loc.id));
+              const merged = [...unsynced, ...cleanRemoteActions];
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('leadion-prospect-actions', JSON.stringify(merged));
+              }
+              idbBulkPut(STORES.ACTIONS, merged).catch(() => {});
+              return merged;
+            });
           }
           if (remote.scripts.length > 0) {
             setScriptsEntities(remote.scripts);
             if (typeof window !== 'undefined') {
               localStorage.setItem('leadion-scripts-v2', JSON.stringify(remote.scripts));
             }
+            idbBulkPut(STORES.SCRIPTS, remote.scripts).catch(() => {});
           }
           if (remote.funnels.length > 0) {
             setFunnels(remote.funnels);
             if (typeof window !== 'undefined') {
               localStorage.setItem('leadion-funnels-v1', JSON.stringify(remote.funnels));
             }
+            idbBulkPut(STORES.FUNNELS, remote.funnels).catch(() => {});
           }
           if (remote.services.length > 0) {
             setServices(remote.services);
             if (typeof window !== 'undefined') {
               localStorage.setItem('leadion-services-v2', JSON.stringify(remote.services));
             }
+            idbBulkPut(STORES.SERVICES, remote.services).catch(() => {});
           }
           if (remote.objections.length > 0) {
             setObjectionsEntities(remote.objections);
             if (typeof window !== 'undefined') {
               localStorage.setItem('leadion_objections_library_v1', JSON.stringify(remote.objections));
             }
+            idbBulkPut(STORES.OBJECTIONS, remote.objections).catch(() => {});
           }
           if (remote.qualificationQuestions && remote.qualificationQuestions.length > 0) {
             setQualificationQuestions(remote.qualificationQuestions);
@@ -3411,13 +3888,15 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('leadion-qualification-answers-v1', JSON.stringify(remote.qualificationAnswers));
             }
           }
-          setSyncStatus('synced');
+          setSyncStatus(loadPendingQueue().length > 0 ? 'pending' : 'synced');
           const nowIso = new Date().toISOString();
           setLastSyncTimestamp(nowIso);
           setLastSyncTimeState(nowIso);
         }
       } catch (err) {
         console.warn('Iniciando em modo offline / cache local:', err);
+      } finally {
+        if (isMounted) setAuthLoading(false);
       }
     }
 
@@ -3439,9 +3918,11 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Monitora eventos de rede
+  // Monitora eventos de rede (online, offline, visibilitychange - Requisito 10)
   React.useEffect(() => {
     const handleOnline = () => {
+      resetMutationsForRetry();
+      setPendingMutations(loadPendingQueue());
       setSyncStatus('syncing');
       showToast({
         type: 'success',
@@ -3452,6 +3933,10 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleOffline = () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       setSyncStatus('offline');
       showToast({
         type: 'warning',
@@ -3460,12 +3945,24 @@ export function LeadionProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        const queue = loadPendingQueue();
+        if (queue.length > 0) {
+          resetMutationsForRetry();
+          triggerCloudSync().catch(() => {});
+        }
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [showToast, triggerCloudSync]);
 

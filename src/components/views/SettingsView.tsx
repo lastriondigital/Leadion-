@@ -161,12 +161,12 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 space-y-1">
-            <span className="text-zinc-400 block font-medium">Fila de Mutações Offline</span>
+            <span className="text-zinc-400 block font-medium">Fila de Mutações Offline (sync_queue)</span>
             <span className="text-base font-bold text-zinc-900 dark:text-zinc-100">
               {pendingMutations?.length || 0} pendentes
             </span>
             <span className="text-[10px] text-zinc-500 block">
-              Gravadas no localStorage com replay automático.
+              Persistida em IndexedDB + localStorage com backoff automático (2s → 30s).
             </span>
           </div>
 
@@ -213,6 +213,54 @@ export const SettingsView: React.FC = () => {
           >
             Simular Conflito de Teste
           </Button>
+        </div>
+      </div>
+
+      {/* Aplicativo Android Nativo (APK) */}
+      <div className="bg-white dark:bg-[#141720] border border-[#E6E8EC] dark:border-[#232836] rounded-[15px] p-6 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              <Download className="w-4 h-4 text-emerald-500" />
+              <span>Aplicativo Android Nativo (APK Instalável)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold uppercase">
+                v1.0.0 · Offline-First
+              </span>
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Pacote nativo Android (<code className="font-mono text-[11px]">com.leadion.app</code>) compilado com suporte completo a modo avião, IndexedDB e sincronização automática com Supabase.
+            </p>
+          </div>
+
+          <a
+            href="/leadion-android.apk"
+            download="leadion-android.apk"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all shrink-0 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Baixar leadion-android.apk</span>
+          </a>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="p-3 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800">
+            <span className="font-bold text-zinc-800 dark:text-zinc-200 block">1. Baixar no Celular</span>
+            <span className="text-zinc-500 dark:text-zinc-400 text-[11px] mt-0.5 block">
+              Clique em <strong>Baixar leadion-android.apk</strong> para salvar o instalador diretamente no seu smartphone Android.
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800">
+            <span className="font-bold text-zinc-800 dark:text-zinc-200 block">2. Permitir Instalação</span>
+            <span className="text-zinc-500 dark:text-zinc-400 text-[11px] mt-0.5 block">
+              Ao abrir o arquivo APK no Android, confirme <em>&ldquo;Instalar mesmo assim / Permitir desta fonte&rdquo;</em>.
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800">
+            <span className="font-bold text-zinc-800 dark:text-zinc-200 block">3. Uso 100% Offline</span>
+            <span className="text-zinc-500 dark:text-zinc-400 text-[11px] mt-0.5 block">
+              Funciona com ou sem Internet (inclusive em Modo Avião), sincronizando a fila automaticamente ao reconectar.
+            </span>
+          </div>
         </div>
       </div>
 

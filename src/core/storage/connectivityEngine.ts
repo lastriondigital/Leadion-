@@ -3,7 +3,7 @@
  * Valida a conexão real com a Internet e com o Supabase, prevenindo falsos positivos de navigator.onLine.
  */
 
-import { testSupabaseConnection } from '../supabase/supabaseClient';
+import { testSupabaseConnection, getSupabaseCredentials } from '../supabase/supabaseClient';
 
 export type ConnectivityState = 
   | 'online' 
@@ -11,6 +11,7 @@ export type ConnectivityState =
   | 'reconnecting' 
   | 'syncing' 
   | 'synced' 
+  | 'sync_pending'
   | 'sync_error';
 
 export type ConnectivityListener = (state: {
@@ -26,28 +27,38 @@ class ConnectivityManager {
   private latencyMs?: number;
   private listeners: Set<ConnectivityListener> = new Set();
   private checkIntervalId?: any;
+  private isChecking: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.handleBrowserOnline());
       window.addEventListener('offline', () => this.handleBrowserOffline());
-      
-      // Validação inicial em background
-      setTimeout(() => this.validateRealConnection(), 1000);
 
-      // Verificação periódica a cada 40 segundos quando a aba estiver em foco
-      this.checkIntervalId = setInterval(() => {
+      document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            this.handleBrowserOffline();
+          } else {
+            this.validateRealConnection();
+          }
+        }
+      });
+
+      // Validação inicial em background sem bloquear a thread principal
+      setTimeout(() => this.validateRealConnection(), 800);
+
+      // Verificação periódica a cada 45 segundos quando a aba estiver em foco
+      this.checkIntervalId = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
           this.validateRealConnection();
         }
-      }, 40000);
+      }, 45000);
     }
   }
 
   private handleBrowserOnline() {
     this.currentState = 'reconnecting';
     this.notify();
-    // Valida se há conexão de verdade
     this.validateRealConnection();
   }
 
@@ -65,30 +76,44 @@ class ConnectivityManager {
       return false;
     }
 
+    const creds = getSupabaseCredentials();
+    if (!creds.isConfigured) {
+      // Sem credenciais de nuvem configuradas, respeita navigator.onLine para a rede mas mantém operação local
+      this.isRealOnline = typeof navigator !== 'undefined' ? navigator.onLine : false;
+      this.currentState = this.isRealOnline ? 'online' : 'offline';
+      this.notify();
+      return this.isRealOnline;
+    }
+
+    if (this.isChecking) {
+      return this.isRealOnline;
+    }
+
+    this.isChecking = true;
     try {
       const res = await testSupabaseConnection();
       if (res.success) {
         this.isRealOnline = true;
         this.latencyMs = res.latencyMs;
-        // Se estava offline ou reconectando, passa a online/synced
         if (this.currentState === 'offline' || this.currentState === 'reconnecting') {
           this.currentState = 'online';
         }
       } else {
-        // Tentativa de ping alternativo caso erro do Supabase seja específico de RLS ou tabela
         this.isRealOnline = false;
         this.currentState = 'offline';
       }
     } catch {
       this.isRealOnline = false;
       this.currentState = 'offline';
+    } finally {
+      this.isChecking = false;
     }
 
     this.notify();
     return this.isRealOnline;
   }
 
-  public setSyncState(state: 'syncing' | 'synced' | 'sync_error') {
+  public setSyncState(state: 'syncing' | 'synced' | 'sync_pending' | 'sync_error' | 'offline' | 'online') {
     this.currentState = state;
     this.notify();
   }
@@ -104,7 +129,6 @@ class ConnectivityManager {
 
   public subscribe(listener: ConnectivityListener): () => void {
     this.listeners.add(listener);
-    // Notifica estado atual imediatamente
     listener(this.getState());
     return () => {
       this.listeners.delete(listener);

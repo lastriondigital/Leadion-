@@ -358,14 +358,16 @@ export const CompanyFormModal: React.FC = () => {
         commercialContext: {},
       };
 
-      const res = await addCompany(payload);
-      setIsSubmitting(false);
-
-      if (res.success && res.company) {
-        setCreatedCompany(res.company);
-        setIsSuccessState(true);
-      } else {
-        handleClose();
+      try {
+        const res = await addCompany(payload);
+        if (res.success && res.company) {
+          setCreatedCompany(res.company);
+          setIsSuccessState(true);
+        } else {
+          handleClose();
+        }
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };

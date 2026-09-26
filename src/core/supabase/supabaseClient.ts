@@ -261,6 +261,63 @@ export function saveSupabaseCredentials(url: string, anonKey: string): void {
 let supabaseClientInstance: SupabaseClient | null = null;
 
 /**
+ * Utilitário de timeout determinístico para qualquer Promise de rede
+ * Garante que nenhuma requisição bloqueie indefinidamente a UI ou o Sync Engine.
+ */
+export function withTimeout<T>(
+  promise: PromiseLike<T>,
+  timeoutMs: number = 5500,
+  errorMessage: string = 'Tempo limite de conexão excedido (Timeout).'
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((result) => {
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+/**
+ * Wrapper de fetch com timeout estrito e detecção imediata de modo offline
+ */
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new TypeError('Failed to fetch: Dispositivo em modo offline.');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5500);
+
+  if (init?.signal) {
+    init.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  try {
+    const response = await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Network timeout: Servidor Supabase não respondeu dentro do limite de 5.5s.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+/**
  * Obtém ou inicializa o cliente Supabase oficial centralizado
  * UI -> Repository / Service -> Supabase Client -> Supabase
  */
@@ -280,6 +337,10 @@ export function getSupabaseClient(): SupabaseClient | null {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+      global: {
+        fetch: fetchWithTimeout,
       },
     });
     return supabaseClientInstance;
@@ -308,7 +369,7 @@ export interface SupabaseDiagnosticResult {
 /**
  * Função de diagnóstico interno oficial do Supabase:
  * Verifica URL, Publishable Key, formato, inicialização e sessão
- * NUNCA expõe a chave completa no console
+ * NUNCA expõe a chave completa no console e NUNCA bloqueia em modo offline.
  */
 export async function runSupabaseDiagnostics(): Promise<SupabaseDiagnosticResult> {
   const creds = getSupabaseCredentials();
@@ -319,6 +380,22 @@ export async function runSupabaseDiagnostics(): Promise<SupabaseDiagnosticResult
   const keyValidFormat = isValidSupabaseKeyFormat(creds.publishableKey);
   const keyMasked = maskApiKey(creds.publishableKey);
   const urlMasked = maskUrl(creds.url);
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return {
+      urlPresent,
+      urlValidFormat,
+      urlMasked,
+      keyPresent,
+      keyValidFormat,
+      keyMasked,
+      keyType: creds.keyType,
+      clientInitialized: Boolean(urlPresent && keyPresent && keyValidFormat),
+      sessionAvailable: false,
+      status: 'offline_only',
+      message: 'Modo Offline ativo — operando 100% no banco local IndexedDB.',
+    };
+  }
 
   if (!urlPresent || !keyPresent) {
     console.info(`[Supabase Diagnostic] Configuração incompleta | Key: ${keyMasked} | URL: ${urlMasked}`);
@@ -374,7 +451,7 @@ export async function runSupabaseDiagnostics(): Promise<SupabaseDiagnosticResult
   let sessionAvailable = false;
   let sessionUserId: string | null = null;
   try {
-    const { data: { session } } = await client.auth.getSession();
+    const { data: { session } } = await withTimeout(client.auth.getSession(), 3000);
     sessionAvailable = Boolean(session);
     sessionUserId = session?.user?.id || null;
   } catch {}
@@ -395,14 +472,14 @@ export async function runSupabaseDiagnostics(): Promise<SupabaseDiagnosticResult
     clientInitialized: true,
     sessionAvailable,
     sessionUserId,
-    status: conn.success ? 'healthy' : 'invalid_key',
+    status: conn.success ? 'healthy' : 'offline_only',
     message: conn.message,
     latencyMs: conn.latencyMs,
   };
 }
 
 /**
- * Testa conectividade real com a instância do Supabase
+ * Testa conectividade real com a instância do Supabase com timeout estrito
  */
 export async function testSupabaseConnection(): Promise<{
   success: boolean;
@@ -410,7 +487,15 @@ export async function testSupabaseConnection(): Promise<{
   message: string;
   isSimulated?: boolean;
 }> {
-  const { url, publishableKey, isConfigured, validationError } = getSupabaseCredentials();
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return {
+      success: false,
+      latencyMs: 0,
+      message: 'Dispositivo sem conexão à Internet (Modo Offline).',
+    };
+  }
+
+  const { url, isConfigured, validationError } = getSupabaseCredentials();
 
   if (!isConfigured) {
     return {
@@ -430,12 +515,15 @@ export async function testSupabaseConnection(): Promise<{
 
   const start = performance.now();
   try {
-    // Executa ping simples na tabela oficial de empresas
-    const { error } = await client.from('companies').select('id').limit(1);
+    const { error } = await withTimeout<{ error: any }>(
+      client.from('leadion_companies').select('id').limit(1) as any,
+      4500,
+      'Timeout ao contactar Supabase (4.5s).'
+    );
     const latencyMs = Math.round(performance.now() - start);
 
     if (error) {
-      if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('does not exist')) {
         return {
           success: true,
           latencyMs,
@@ -508,7 +596,8 @@ export async function uploadCloudBackup(
     },
   };
 
-  if (client) {
+  const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+  if (client && isOnline) {
     try {
       const { error } = await client.from('leadion_cloud_backups').insert({
         id: backupId,
@@ -543,9 +632,9 @@ export async function uploadCloudBackup(
   return {
     success: true,
     backupId,
-    message: client 
+    message: client && isOnline
       ? 'Backup salvo no banco de dados na nuvem.' 
-      : 'Backup salvo na réplica em nuvem (Sandbox Offline/Supabase).',
+      : 'Backup salvo na réplica local (Modo Offline).',
   };
 }
 
@@ -554,7 +643,8 @@ export async function uploadCloudBackup(
  */
 export async function listCloudBackups(): Promise<CloudBackupMetadata[]> {
   const client = getSupabaseClient();
-  if (client) {
+  const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+  if (client && isOnline) {
     try {
       const { data, error } = await client
         .from('leadion_cloud_backups')
@@ -602,7 +692,8 @@ export async function listCloudBackups(): Promise<CloudBackupMetadata[]> {
  */
 export async function downloadCloudBackup(backupId: string): Promise<any | null> {
   const client = getSupabaseClient();
-  if (client) {
+  const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+  if (client && isOnline) {
     try {
       const { data, error } = await client
         .from('leadion_cloud_backups')
