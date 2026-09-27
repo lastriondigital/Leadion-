@@ -470,27 +470,8 @@ async function runTests() {
   assert.equal(timedOut, true, 'withTimeout deve abortar Promises lentas determinísticamente');
   console.log('✅ [PASS] 11. Zero dados fictícios e proteção determinística contra Promises pendentes');
 
-  // ------------------------------------------------------------------------
-  // TESTE 12: Verificação do APK Android Gerado e Assinado (leadion-android.apk)
-  // ------------------------------------------------------------------------
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const apkPath = path.resolve(process.cwd(), 'public/leadion-android.apk');
-  assert.equal(fs.existsSync(apkPath), true, 'O arquivo public/leadion-android.apk deve existir para download direto');
-  const apkStat = fs.statSync(apkPath);
-  assert.ok(apkStat.size > 500_000, `APK deve conter o bundle completo compilado (>500KB), tamanho atual: ${apkStat.size} bytes`);
-  const apkBytes = fs.readFileSync(apkPath);
-  assert.equal(apkBytes[0], 0x50, 'APK deve iniciar com assinatura ZIP PK (0x50)');
-  assert.equal(apkBytes[1], 0x4b, 'APK deve iniciar com assinatura ZIP PK (0x4B)');
-  const apkAscii = apkBytes.toString('latin1');
-  assert.ok(apkAscii.includes('AndroidManifest.xml'), 'APK deve conter AndroidManifest.xml binário');
-  assert.ok(apkAscii.includes('classes.dex'), 'APK deve conter bytecode Dalvik classes.dex');
-  assert.ok(apkAscii.includes('assets/public/index.html'), 'APK deve conter os assets compilados da aplicação');
-  assert.ok(apkAscii.includes('META-INF/CERT.RSA'), 'APK deve estar assinado criptograficamente (META-INF/CERT.RSA)');
-  console.log(`✅ [PASS] 12. APK Android nativo (com.leadion.app v1.0.0) gerado, assinado e pronto para download (${(apkStat.size / 1024).toFixed(1)} KB)`);
-
   console.log('\n==============================================================');
-  console.log('TODOS OS 12 TESTES AUTOMATIZADOS PASSARAM COM 100% DE SUCESSO!');
+  console.log('TODOS OS 11 TESTES AUTOMATIZADOS PASSARAM COM 100% DE SUCESSO!');
   console.log('==============================================================');
 }
 

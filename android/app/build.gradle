@@ -1,14 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.leadion.app"
+    namespace = "com.lastriondigital.leadion"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.leadion.app"
+        applicationId "com.lastriondigital.leadion"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0.0"
+        versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

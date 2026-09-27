@@ -2,50 +2,103 @@ name: Build Leadion Android APK
 
 on:
   workflow_dispatch:
-    push:
-        branches:
-              - main
+  push:
+    branches:
+      - main
 
-              jobs:
-                build-apk:
-                    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
-                        steps:
-                              - name: Checkout repository
-                                      uses: actions/checkout@v4
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
 
-                                            - name: Setup Node.js
-                                                    uses: actions/setup-node@v4
-                                                            with:
-                                                                      node-version: 22
-                                                                                cache: npm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-                                                                                      - name: Install dependencies
-                                                                                              run: npm ci
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
 
-                                                                                                    - name: Build web app
-                                                                                                            run: npm run build
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
-                                                                                                                  - name: Sync Capacitor
-                                                                                                                          run: npx cap sync android
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-                                                                                                                                - name: Setup Java
-                                                                                                                                        uses: actions/setup-java@v4
-                                                                                                                                                with:
-                                                                                                                                                          distribution: temurin
-                                                                                                                                                                    java-version: '21'
+      - name: Install Android SDK 36
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-                                                                                                                                                                          - name: Setup Android SDK
-                                                                                                                                                                                  uses: android-actions/setup-android@v3
+      - name: Install dependencies
+        run: npm ci
 
-                                                                                                                                                                                        - name: Build Debug APK
-                                                                                                                                                                                                working-directory: android
-                                                                                                                                                                                                        run: |
-                                                                                                                                                                                                                  chmod +x gradlew
-                                                                                                                                                                                                                            ./gradlew assembleDebug
+      - name: Build web app
+        run: npm run build
 
-                                                                                                                                                                                                                                  - name: Upload APK
-                                                                                                                                                                                                                                          uses: actions/upload-artifact@v4
-                                                                                                                                                                                                                                                  with:
-                                                                                                                                                                                                                                                            name: Leadion-APK
-                                                                                                                                                                                                                                                                      path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Verify toolchain
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          java -version
+          ./gradlew --version
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew clean assembleDebug --no-daemon --stacktrace
+
+      - name: Validate APK
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+
+          echo "Listando diretório de saída do APK:"
+          ls -lh android/app/build/outputs/apk/debug/
+
+          if [ ! -f "$APK" ]; then
+            echo "ERRO: APK não foi encontrado em $APK."
+            exit 1
+          fi
+
+          echo "APK encontrado:"
+          ls -lh "$APK"
+
+          SIZE=$(stat -c%s "$APK")
+          echo "Tamanho exato do APK: $SIZE bytes"
+
+          if [ "$SIZE" -lt 1048576 ]; then
+            echo "ERRO: APK possui tamanho suspeito (< 1 MB): $SIZE bytes"
+            exit 1
+          fi
+
+          if command -v file >/dev/null 2>&1; then
+            echo "Tipo do arquivo:"
+            file "$APK"
+          fi
+
+          echo "Validando estrutura e integridade ZIP/APK:"
+          unzip -t "$APK"
+
+          echo "Conteúdo básico do APK (arquivos principais):"
+          unzip -l "$APK" | grep -E "AndroidManifest.xml|classes.*dex|resources.arsc|assets/public/index.html"
+
+      - name: Prepare APK artifact
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Leadion-debug.apk
+          ls -lh Leadion-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Leadion-APK
+          path: Leadion-debug.apk
+          if-no-files-found: error

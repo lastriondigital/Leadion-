@@ -1,18 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.leadion.app',
-  appName: 'Leadion',
-  webDir: 'dist',
-  server: {
-    androidScheme: 'https',
-    cleartext: true
-  },
-  android: {
-    allowMixedContent: true,
-    captureInput: true,
-    webContentsDebuggingEnabled: true
-  }
+  appId: 'com.lastriondigital.leadion',
+  appName: 'leadion',
+  webDir: 'dist'
 };
 
 export default config;

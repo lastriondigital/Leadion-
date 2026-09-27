@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Leadion</string>
-    <string name="title_activity_main">Leadion</string>
-    <string name="package_name">com.leadion.app</string>
-    <string name="custom_url_scheme">com.leadion.app</string>
+    <string name="app_name">leadion</string>
+    <string name="title_activity_main">leadion</string>
+    <string name="package_name">com.lastriondigital.leadion</string>
+    <string name="custom_url_scheme">com.lastriondigital.leadion</string>
 </resources>
